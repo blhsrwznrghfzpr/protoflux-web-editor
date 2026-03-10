@@ -1,5 +1,7 @@
 export interface NodeDefinition {
   type: string;
+  /** パレットや UI に表示する名前。省略時は type をそのまま使う */
+  displayName?: string;
   category: string;
   inputs: Array<{ name: string; dataType: string }>;
   outputs: Array<{ name: string; dataType: string }>;

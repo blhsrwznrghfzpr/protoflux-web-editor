@@ -11,7 +11,7 @@ export function Palette() {
     const lower = search.toLowerCase();
     return definitions.filter(
       (d) =>
-        d.type.toLowerCase().includes(lower) ||
+        (d.displayName ?? d.type).toLowerCase().includes(lower) ||
         d.category.toLowerCase().includes(lower),
     );
   }, [definitions, search]);
@@ -100,7 +100,7 @@ export function Palette() {
                   e.currentTarget.style.borderColor = 'transparent';
                 }}
               >
-                {def.type.split('/').pop()}
+                {def.displayName ?? def.type}
               </button>
             ))}
           </div>
