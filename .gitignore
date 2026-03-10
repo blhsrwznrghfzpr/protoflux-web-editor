@@ -2,3 +2,7 @@ node_modules
 dist
 .vite
 *.local
+
+# Generated ProtoFlux raw type data (70MB - run npm run fetch-types to regenerate)
+src/data/protoflux-types.json
+# Note: src/data/protoflux-node-defs.json is committed to the repo
