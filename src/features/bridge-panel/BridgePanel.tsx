@@ -1,6 +1,8 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { ResoniteLinkBridge } from '@/bridge/resonite-link-bridge';
 import { serialize } from '@/serialization/serialize';
+import { deserialize } from '@/serialization/deserialize';
+import { toast } from '@/shared/components/Toast';
 import { useCallback, useEffect, useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -17,6 +19,7 @@ export function BridgePanel() {
   const setBridgeStatus = useEditorStore((s) => s.setBridgeStatus);
   const graph = useEditorStore((s) => s.graph);
   const documentName = useEditorStore((s) => s.documentName);
+  const loadGraph = useEditorStore((s) => s.loadGraph);
   const [url, setUrl] = useState('ws://localhost:11404');
 
   useEffect(() => {
@@ -30,23 +33,45 @@ export function BridgePanel() {
     newBridge.onStatusChange(setBridgeStatus);
     try {
       await newBridge.connect();
+      toast('Connected to Resonite', 'success');
     } catch {
-      // Status is set via onStatusChange
+      toast('Failed to connect to Resonite', 'error');
     }
   }, [url, setBridge, setBridgeStatus]);
 
   const handleDisconnect = useCallback(async () => {
     await bridge.disconnect();
+    toast('Disconnected from Resonite', 'info');
   }, [bridge]);
 
   const handlePush = useCallback(async () => {
     try {
       const doc = serialize(graph, documentName);
       await bridge.pushGraph(doc);
+      toast('Graph pushed to Resonite', 'success');
     } catch (err) {
-      alert(`Push failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast(`Push failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
     }
   }, [bridge, graph, documentName]);
+
+  const handlePull = useCallback(async () => {
+    if (!bridge.pullGraph) {
+      toast('Pull is not supported by this bridge', 'error');
+      return;
+    }
+    try {
+      const doc = await bridge.pullGraph();
+      const { graph: pulledGraph, warnings } = deserialize(doc);
+      loadGraph(pulledGraph, doc.meta.name);
+      if (warnings.length > 0) {
+        toast(`Pull completed with warnings: ${warnings.join(', ')}`, 'info');
+      } else {
+        toast('Graph pulled from Resonite', 'success');
+      }
+    } catch (err) {
+      toast(`Pull failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    }
+  }, [bridge, loadGraph]);
 
   const isConnected = bridgeStatus === 'connected';
 
@@ -98,6 +123,16 @@ export function BridgePanel() {
         }}
       >
         Push
+      </button>
+      <button
+        onClick={handlePull}
+        disabled={!isConnected}
+        style={{
+          ...btnStyle,
+          opacity: isConnected ? 1 : 0.4,
+        }}
+      >
+        Pull
       </button>
     </div>
   );

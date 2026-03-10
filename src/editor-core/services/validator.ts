@@ -77,7 +77,87 @@ export function validateGraph(graph: GraphModel): ValidationError[] {
     }
   }
 
+  // Cycle detection
+  const cycleErrors = detectCycles(graph);
+  errors.push(...cycleErrors);
+
   return errors;
+}
+
+export function detectCycles(graph: GraphModel): ValidationError[] {
+  const errors: ValidationError[] = [];
+  // Build adjacency list: nodeId -> set of downstream nodeIds
+  const adj = new Map<NodeId, Set<NodeId>>();
+  for (const node of graph.nodes) {
+    adj.set(node.id, new Set());
+  }
+  for (const edge of graph.edges) {
+    adj.get(edge.from.nodeId)?.add(edge.to.nodeId);
+  }
+
+  const visited = new Set<NodeId>();
+  const inStack = new Set<NodeId>();
+
+  function dfs(nodeId: NodeId): boolean {
+    if (inStack.has(nodeId)) return true;
+    if (visited.has(nodeId)) return false;
+    visited.add(nodeId);
+    inStack.add(nodeId);
+    for (const neighbor of adj.get(nodeId) ?? []) {
+      if (dfs(neighbor)) {
+        return true;
+      }
+    }
+    inStack.delete(nodeId);
+    return false;
+  }
+
+  for (const node of graph.nodes) {
+    if (!visited.has(node.id)) {
+      if (dfs(node.id)) {
+        errors.push({
+          type: 'cycle-detected',
+          message: 'Graph contains a cycle',
+        });
+        break;
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Check if adding an edge from fromNodeId to toNodeId would create a cycle.
+ */
+export function wouldCreateCycle(
+  graph: GraphModel,
+  fromNodeId: NodeId,
+  toNodeId: NodeId,
+): boolean {
+  // Check if there's already a path from toNodeId to fromNodeId
+  const adj = new Map<NodeId, Set<NodeId>>();
+  for (const node of graph.nodes) {
+    adj.set(node.id, new Set());
+  }
+  for (const edge of graph.edges) {
+    adj.get(edge.from.nodeId)?.add(edge.to.nodeId);
+  }
+
+  // BFS from toNodeId to see if we can reach fromNodeId
+  const queue = [toNodeId];
+  const visited = new Set<NodeId>([toNodeId]);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === fromNodeId) return true;
+    for (const neighbor of adj.get(current) ?? []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+  return false;
 }
 
 export function canConnect(
@@ -112,6 +192,11 @@ export function canConnect(
   );
   if (hasExisting) {
     return { ok: false, reason: 'Input port already connected' };
+  }
+
+  // Check if adding this edge would create a cycle
+  if (fromNodeId === toNodeId || wouldCreateCycle(graph, fromNodeId, toNodeId)) {
+    return { ok: false, reason: 'Connection would create a cycle' };
   }
 
   return { ok: true };
