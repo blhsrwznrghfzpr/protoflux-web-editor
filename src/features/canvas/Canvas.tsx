@@ -29,7 +29,7 @@ const DATA_TYPE_COLORS: Record<string, string> = {
 
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {
   const model = data.model;
-  const label = model.type.split('/').pop() ?? model.type;
+  const label = model.displayName ?? model.type;
 
   return (
     <div

@@ -10,6 +10,7 @@ export interface PortModel {
 export interface NodeModel {
   id: NodeId;
   type: string;
+  displayName?: string;
   position: { x: number; y: number };
   inputs: PortModel[];
   outputs: PortModel[];
