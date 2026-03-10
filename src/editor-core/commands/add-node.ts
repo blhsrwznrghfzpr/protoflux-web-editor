@@ -14,6 +14,7 @@ export function addNode(
   const node: NodeModel = {
     id: nodeId,
     type,
+    displayName: def?.displayName,
     position,
     inputs: (def?.inputs ?? []).map((p) => ({
       id: `${nodeId}-in-${p.name}`,
