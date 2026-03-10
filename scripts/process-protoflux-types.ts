@@ -17,6 +17,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const IN_PATH = resolve(__dirname, '../src/data/protoflux-types.json');
 const OUT_PATH = resolve(__dirname, '../src/data/protoflux-node-defs.json');
 
+// ---- 型定義 ----------------------------------------------------------------
+
 interface ProcessedPort {
   name: string;
   dataType: string;
@@ -28,6 +30,12 @@ interface ProcessedNodeDef {
   category: string;
   displayName: string;
   isGeneric: boolean;
+  /** ジェネリックパラメータ名のリスト ("T", "T0" など) */
+  genericParamNames: string[];
+  /** 展開済みの具体的な型を持つノードか */
+  isExpanded: boolean;
+  /** ジェネリックフィールド (ValueInput パターン) を持つか */
+  hasGenericField: boolean;
   inputs: ProcessedPort[];
   outputs: ProcessedPort[];
 }
@@ -47,7 +55,9 @@ interface ProcessedOutput {
   nodes: ProcessedNodeDef[];
 }
 
-const PRIMITIVE_MAP: Record<string, string> = {
+// ---- プリミティブ型リスト --------------------------------------------------
+
+const SYSTEM_TYPE_MAP: Record<string, string> = {
   'System.Single': 'Float',
   'System.Double': 'Double',
   'System.Int32': 'Int',
@@ -64,69 +74,68 @@ const PRIMITIVE_MAP: Record<string, string> = {
   'System.Object': 'Object',
 };
 
+/** struct 制約を満たすプリミティブ型 (Resonite 内部型名, 表示名) */
+const STRUCT_PRIMITIVE_TYPES: Array<[string, string]> = [
+  ['bool', 'Bool'],
+  ['byte', 'Byte'],
+  ['sbyte', 'SByte'],
+  ['short', 'Short'],
+  ['ushort', 'UShort'],
+  ['int', 'Int'],
+  ['uint', 'UInt'],
+  ['long', 'Long'],
+  ['ulong', 'ULong'],
+  ['float', 'Float'],
+  ['double', 'Double'],
+  ['float2', 'Float2'],
+  ['float3', 'Float3'],
+  ['float4', 'Float4'],
+  ['floatQ', 'FloatQ'],
+  ['color', 'Color'],
+  ['colorX', 'ColorX'],
+];
+
+/** 制約なし (参照型含む) のプリミティブ型 */
+const ALL_PRIMITIVE_TYPES: Array<[string, string]> = [
+  ...STRUCT_PRIMITIVE_TYPES,
+  ['string', 'String'],
+];
+
+// ---- 型名ユーティリティ ----------------------------------------------------
+
 function simplifyTypeName(fullType: string): string {
-  // ジェネリックパラメータプレースホルダー T, U, TValue など
-  if (/^[A-Z][A-Za-z]*$/.test(fullType)) return fullType;
-
-  if (fullType in PRIMITIVE_MAP) return PRIMITIVE_MAP[fullType];
-
-  // アセンブリ修飾子 "[Assembly]Namespace.TypeName" → "TypeName"
+  if (/^[A-Z][A-Za-z0-9]*$/.test(fullType)) return fullType;  // ジェネリックパラメータ
+  if (fullType in SYSTEM_TYPE_MAP) return SYSTEM_TYPE_MAP[fullType];
   const withoutAssembly = fullType.replace(/^\[[^\]]+\]/, '');
   const parts = withoutAssembly.split('.');
   const lastPart = parts[parts.length - 1] ?? fullType;
-
-  // ジェネリック定義 "TypeName<>" → "TypeName" (バッククォートも除去)
   return lastPart.replace(/<>$/, '').replace(/`\d+$/, '');
 }
 
-/**
- * TypeReference から人間が読みやすいデータ型文字列を生成する
- * 例: INodeValueOutput<> { genericArguments: [{type: "float"}] } → "Float"
- */
 function resolveTypeRef(typeRef: { type: string; genericArguments?: Array<{ type: string }> | null }): string {
   const args = typeRef.genericArguments;
   if (args && args.length > 0) {
-    // 最初のジェネリック引数が実際のデータ型
     const argType = args[0]?.type ?? '';
-    if (argType in PRIMITIVE_MAP) return PRIMITIVE_MAP[argType];
+    if (argType in SYSTEM_TYPE_MAP) return SYSTEM_TYPE_MAP[argType];
     if (argType) return simplifyTypeName(argType);
   }
-  // 引数なし（ジェネリック定義か非ジェネリック）
   return simplifyTypeName(typeRef.type);
 }
 
+// ---- メンバー分類 ----------------------------------------------------------
 
-/** ProtoFlux ノードのメンバー種別を判定して入力 / 出力ポートに分類する
- *
- * ResoniteLink reflection API での ProtoFlux ポートのパターン:
- *
- *  データ入力  - reference to INodeValueOutput<T> or INodeObjectOutput<T>
- *                (他ノードの出力を参照する)
- *  データ出力  - empty member of NodeValueOutput<T> or NodeObjectOutput<T>
- *                (このノード自身が提供するデータ出力)
- *  フロー入力  - empty member of SyncNodeOperation
- *                (このノードへの実行フロー入力)
- *  フロー出力  - reference to INodeOperation
- *                (このノードから続く実行フロー出力)
- */
 function classifyMember(
   _name: string,
   member: MemberDefinition,
 ): { role: 'input' | 'output' | 'ignore'; kind: 'data' | 'flow'; dataType: string } {
   if (member.$type === 'reference') {
     const targetType = member.targetType.type;
-
-    // データ入力: 他ノードの値出力を参照
     if (targetType.includes('INodeValueOutput') || targetType.includes('INodeObjectOutput')) {
       return { role: 'input', kind: 'data', dataType: resolveTypeRef(member.targetType) };
     }
-
-    // フロー出力: 実行を次のオペレーションへ渡す
     if (targetType.includes('INodeOperation')) {
       return { role: 'output', kind: 'flow', dataType: 'Operation' };
     }
-
-    // その他の参照は無視 (IGlobalValueProxy, IVariable など)
     return { role: 'ignore', kind: 'data', dataType: '' };
   }
 
@@ -134,44 +143,150 @@ function classifyMember(
     const raw = member as unknown as Record<string, unknown>;
     const typeField = raw['type'] as { type: string; genericArguments?: Array<{ type: string }> | null } | undefined;
     const fullType = typeField?.type ?? member.type ?? '';
-
-    // データ出力: このノードが提供する値
     if (fullType.includes('NodeValueOutput') || fullType.includes('NodeObjectOutput')) {
-      const dataType = typeField ? resolveTypeRef(typeField) : simplifyTypeName(fullType);
-      return { role: 'output', kind: 'data', dataType };
+      return { role: 'output', kind: 'data', dataType: typeField ? resolveTypeRef(typeField) : simplifyTypeName(fullType) };
     }
-
-    // フロー入力: このノードへの実行トリガー
     if (fullType.includes('SyncNodeOperation') || fullType.includes('NodeImpulse')) {
       return { role: 'input', kind: 'flow', dataType: 'Impulse' };
     }
-
     return { role: 'ignore', kind: 'data', dataType: '' };
   }
 
-  // field / array / list / syncObject は無視
   return { role: 'ignore', kind: 'data', dataType: '' };
 }
+
+// ---- コンポーネント処理 ----------------------------------------------------
 
 function processComponent(typeName: string, def: ComponentDefinition): ProcessedNodeDef {
   const inputs: ProcessedPort[] = [];
   const outputs: ProcessedPort[] = [];
 
+  let hasGenericField = false;
+  let genericFieldName = '';
+
   for (const [memberName, member] of Object.entries(def.members)) {
-    const { role, kind, dataType } = classifyMember(memberName, member);
-    if (role === 'input') {
-      inputs.push({ name: memberName, dataType, kind });
-    } else if (role === 'output') {
-      outputs.push({ name: memberName, dataType, kind });
+    // ジェネリックフィールド (ValueInput パターン) の検出
+    if (
+      member.$type === 'field' &&
+      (member.valueType as { isGenericParameter?: boolean }).isGenericParameter === true
+    ) {
+      hasGenericField = true;
+      genericFieldName = memberName;
+      continue;
     }
+
+    const { role, kind, dataType } = classifyMember(memberName, member);
+    if (role === 'input') inputs.push({ name: memberName, dataType, kind });
+    else if (role === 'output') outputs.push({ name: memberName, dataType, kind });
+  }
+
+  // ValueInput パターン: ジェネリックフィールドがあり出力なし → フィールドを暗黙的出力として扱う
+  if (hasGenericField && outputs.filter(o => o.kind === 'data').length === 0) {
+    outputs.push({ name: genericFieldName, dataType: 'T', kind: 'data' });
   }
 
   const category = def.categoryPath || 'ProtoFlux';
   const displayName = def.type.name;
   const isGeneric = def.type.isGenericType;
 
-  return { type: typeName, category, displayName, isGeneric, inputs, outputs };
+  // ジェネリックパラメータ名を収集 (ポートの dataType に現れるもの)
+  const paramNamesInPorts = new Set<string>();
+  for (const p of [...inputs, ...outputs]) {
+    if (/^[A-Z][A-Za-z0-9]*$/.test(p.dataType)) paramNamesInPorts.add(p.dataType);
+  }
+  const genericParamNames = def.type.genericParameters?.map(p => p.name) ?? [];
+
+  return {
+    type: typeName,
+    category,
+    displayName,
+    isGeneric,
+    genericParamNames,
+    isExpanded: false,
+    hasGenericField,
+    inputs,
+    outputs,
+  };
 }
+
+// ---- ジェネリック展開 -------------------------------------------------------
+
+/**
+ * 単一ジェネリックパラメータのノードを各プリミティブ型に展開する
+ *
+ * - struct 制約あり → STRUCT_PRIMITIVE_TYPES
+ * - 制約なし / class → ALL_PRIMITIVE_TYPES
+ */
+function expandGenericNodes(
+  nodes: ProcessedNodeDef[],
+  rawTypes: ProtofluxTypeData['types'],
+): ProcessedNodeDef[] {
+  const result: ProcessedNodeDef[] = [];
+
+  for (const node of nodes) {
+    // 単一ジェネリックパラメータかつ <> を含む型のみ展開
+    if (
+      !node.isGeneric ||
+      node.genericParamNames.length !== 1 ||
+      !node.type.includes('<>')
+    ) {
+      result.push(node);
+      continue;
+    }
+
+    const paramName = node.genericParamNames[0]!;
+    const rawDef = rawTypes[node.type];
+    const param = rawDef?.type.genericParameters?.find(p => p.name === paramName);
+
+    // 展開対象の型リストを決定
+    const typesToExpand: Array<[string, string]> =
+      param?.struct === true ? STRUCT_PRIMITIVE_TYPES : ALL_PRIMITIVE_TYPES;
+
+    // ジェネリック定義はそのまま残す（テンプレートとして）
+    result.push(node);
+
+    for (const [resoniteName, displayName] of typesToExpand) {
+      const expandedType = node.type.replace('<>', `<>[${resoniteName}]`);
+      const expandedDisplayName = `${node.displayName}<${displayName}>`;
+
+      const substituteType = (dataType: string): string =>
+        dataType === paramName ? displayName : dataType;
+
+      const expandedInputs = node.inputs.map(p => ({
+        ...p,
+        dataType: substituteType(p.dataType),
+      }));
+
+      const expandedOutputs = node.outputs.map(p => ({
+        ...p,
+        dataType: substituteType(p.dataType),
+      }));
+
+      // 計算ノード: T 型の入力はあるが data 出力がない → 暗黙的な出力を追加
+      const hasDataOutputs = expandedOutputs.some(p => p.kind === 'data');
+      const hasTInputs = expandedInputs.some(p => p.kind === 'data');
+      if (hasTInputs && !hasDataOutputs) {
+        expandedOutputs.push({ name: '*', dataType: displayName, kind: 'data' });
+      }
+
+      result.push({
+        type: expandedType,
+        category: node.category,
+        displayName: expandedDisplayName,
+        isGeneric: false,
+        genericParamNames: [],
+        isExpanded: true,
+        hasGenericField: node.hasGenericField,
+        inputs: expandedInputs,
+        outputs: expandedOutputs,
+      });
+    }
+  }
+
+  return result;
+}
+
+// ---- main ------------------------------------------------------------------
 
 function main() {
   console.log(`Reading: ${IN_PATH}`);
@@ -191,12 +306,18 @@ function main() {
     nodes.push(processComponent(typeName, def));
   }
 
+  console.log(`Expanding generic nodes...`);
+  const expanded = expandGenericNodes(nodes, raw.types);
+
+  const expandedCount = expanded.filter(n => n.isExpanded).length;
+  console.log(`Expanded: ${expandedCount} concrete instances from generic nodes`);
+
   const output: ProcessedOutput = {
     generatedAt: new Date().toISOString(),
     resoniteVersion: raw.resoniteVersion,
     sourceFile: 'protoflux-types.json',
-    totalCount: nodes.length,
-    nodes,
+    totalCount: expanded.length,
+    nodes: expanded,
   };
 
   mkdirSync(dirname(OUT_PATH), { recursive: true });
@@ -205,13 +326,18 @@ function main() {
   const sizeKb = Math.round(readFileSync(OUT_PATH).length / 1024);
   console.log(`\nSaved to: ${OUT_PATH}`);
   console.log(`Size: ${sizeKb} KB`);
-  console.log(`Total nodes: ${nodes.length}`);
+  console.log(`Total nodes: ${expanded.length} (${raw.totalCount} original + ${expandedCount} expanded)`);
 
-  // サンプル表示
-  const sample = nodes.find((n) => n.inputs.length > 0 || n.outputs.length > 0);
+  // サンプル表示 (ValueInput<Float>)
+  const sample = expanded.find(n => n.displayName === 'ValueInput<Float>');
   if (sample) {
-    console.log('\nSample node:');
+    console.log('\nSample (ValueInput<Float>):');
     console.log(JSON.stringify(sample, null, 2));
+  }
+  const addSample = expanded.find(n => n.displayName === 'ValueAdd<Float>');
+  if (addSample) {
+    console.log('\nSample (ValueAdd<Float>):');
+    console.log(JSON.stringify(addSample, null, 2));
   }
 }
 

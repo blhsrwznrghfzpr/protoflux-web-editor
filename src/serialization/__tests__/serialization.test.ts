@@ -1,19 +1,40 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { serialize } from '../serialize';
 import { deserialize } from '../deserialize';
 import { addNode } from '@/editor-core/commands/add-node';
 import { connectEdge } from '@/editor-core/commands/connect-edge';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
 import type { GraphModel } from '@/shared/types';
+
+beforeAll(() => {
+  nodeRegistry.register({
+    type: 'Test/FloatConst',
+    category: 'Test/Constants',
+    inputs: [],
+    outputs: [{ name: 'value', dataType: 'Float' }],
+    capabilities: { editable: true, renderable: true },
+  });
+  nodeRegistry.register({
+    type: 'Test/Add',
+    category: 'Test/Math',
+    inputs: [
+      { name: 'a', dataType: 'Float' },
+      { name: 'b', dataType: 'Float' },
+    ],
+    outputs: [{ name: 'result', dataType: 'Float' }],
+    capabilities: { editable: false, renderable: true },
+  });
+});
 
 describe('serialize / deserialize round-trip', () => {
   it('preserves graph structure', () => {
     let graph: GraphModel = { nodes: [], edges: [] };
 
-    const r1 = addNode(graph, 'Constants/Float', { x: 0, y: 0 });
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
     if ('error' in r1) throw new Error(r1.error);
     graph = r1.graph;
 
-    const r2 = addNode(graph, 'Math/Add', { x: 200, y: 0 });
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
     if ('error' in r2) throw new Error(r2.error);
     graph = r2.graph;
 
@@ -32,8 +53,7 @@ describe('serialize / deserialize round-trip', () => {
     expect(restored.edges).toHaveLength(1);
     expect(warnings).toHaveLength(0);
 
-    // Verify node types preserved
-    expect(restored.nodes.map((n) => n.type).sort()).toEqual(['Constants/Float', 'Math/Add']);
+    expect(restored.nodes.map((n) => n.type).sort()).toEqual(['Test/Add', 'Test/FloatConst']);
   });
 
   it('rejects invalid JSON structure', () => {
