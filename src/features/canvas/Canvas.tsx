@@ -19,6 +19,8 @@ import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/app/providers/editor-store';
 import { useCallback, useMemo } from 'react';
 import type { NodeModel } from '@/shared/types';
+import { toast } from '@/shared/components/Toast';
+import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
 
 const DATA_TYPE_COLORS: Record<string, string> = {
   Bool: '#e74c3c',
@@ -134,15 +136,36 @@ export function Canvas() {
 
   const edges: Edge[] = useMemo(
     () =>
-      graph.edges.map((e) => ({
-        id: e.id,
-        source: e.from.nodeId,
-        sourceHandle: e.from.portId,
-        target: e.to.nodeId,
-        targetHandle: e.to.portId,
-        style: { stroke: '#7c3aed' },
-      })),
-    [graph.edges],
+      graph.edges.map((e) => {
+        // 暗黙変換が発生しているエッジを検出して線色・ラベルを変える
+        const fromNode = graph.nodes.find((n) => n.id === e.from.nodeId);
+        const toNode = graph.nodes.find((n) => n.id === e.to.nodeId);
+        const outputPort = fromNode?.outputs.find((p) => p.id === e.from.portId);
+        const inputPort = toNode?.inputs.find((p) => p.id === e.to.portId);
+
+        let stroke = '#7c3aed';
+        let label: string | undefined;
+        if (outputPort && inputPort) {
+          const compat = checkTypeCompatibility(outputPort.dataType, inputPort.dataType);
+          if (compat.implicit) {
+            stroke = '#f39c12'; // 暗黙変換はオレンジ
+            label = `${outputPort.dataType} \u2192 ${inputPort.dataType}`;
+          }
+        }
+
+        return {
+          id: e.id,
+          source: e.from.nodeId,
+          sourceHandle: e.from.portId,
+          target: e.to.nodeId,
+          targetHandle: e.to.portId,
+          style: { stroke },
+          label,
+          labelStyle: label ? { fill: '#f39c12', fontSize: 10 } : undefined,
+          labelBgStyle: label ? { fill: '#1e1e2e', fillOpacity: 0.8 } : undefined,
+        };
+      }),
+    [graph.edges, graph.nodes],
   );
 
   const onNodesChange: OnNodesChange = useCallback(
@@ -177,12 +200,15 @@ export function Canvas() {
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target && connection.sourceHandle && connection.targetHandle) {
-        storeConnectEdge(
+        const error = storeConnectEdge(
           connection.source,
           connection.sourceHandle,
           connection.target,
           connection.targetHandle,
         );
+        if (error) {
+          toast(error, 'error');
+        }
       }
     },
     [storeConnectEdge],

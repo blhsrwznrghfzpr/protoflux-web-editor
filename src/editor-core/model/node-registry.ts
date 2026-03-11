@@ -21,6 +21,13 @@ export interface NodeDefinition {
   validate?: (params: Record<string, unknown>) => string[];
 }
 
+/** ResoniteLink 由来の定義データセットメタ情報 */
+export interface NodeRegistryDataset {
+  generatedAt: string;
+  resoniteVersion: string;
+  totalCount: number;
+}
+
 export interface NodeRegistry {
   get(type: string): NodeDefinition | undefined;
   list(): NodeDefinition[];
@@ -28,10 +35,14 @@ export interface NodeRegistry {
   listPlaceable(): NodeDefinition[];
   register(definition: NodeDefinition): void;
   categories(): string[];
+  /** データセットメタ情報の取得・設定 */
+  getDatasetMeta(): NodeRegistryDataset | null;
+  setDatasetMeta(meta: NodeRegistryDataset): void;
 }
 
 class NodeRegistryImpl implements NodeRegistry {
   private definitions = new Map<string, NodeDefinition>();
+  private datasetMeta: NodeRegistryDataset | null = null;
 
   get(type: string): NodeDefinition | undefined {
     return this.definitions.get(type);
@@ -55,6 +66,14 @@ class NodeRegistryImpl implements NodeRegistry {
       cats.add(def.category);
     }
     return Array.from(cats).sort();
+  }
+
+  getDatasetMeta(): NodeRegistryDataset | null {
+    return this.datasetMeta;
+  }
+
+  setDatasetMeta(meta: NodeRegistryDataset): void {
+    this.datasetMeta = meta;
   }
 }
 

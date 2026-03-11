@@ -13,7 +13,21 @@ interface NodeDef {
   inputs: Port[];
   outputs: Port[];
 }
-const data = rawData as unknown as { nodes: NodeDef[] };
+interface DatasetJson {
+  generatedAt?: string;
+  resoniteVersion?: string;
+  nodes: NodeDef[];
+}
+const data = rawData as unknown as DatasetJson;
+
+// データセットメタ情報を登録
+if (data.generatedAt || data.resoniteVersion) {
+  nodeRegistry.setDatasetMeta({
+    generatedAt: data.generatedAt ?? 'unknown',
+    resoniteVersion: data.resoniteVersion ?? 'unknown',
+    totalCount: data.nodes.length,
+  });
+}
 
 for (const node of data.nodes) {
   nodeRegistry.register({

@@ -21,7 +21,7 @@ interface EditorState {
 
   // Actions
   addNode: (type: string, position: { x: number; y: number }) => void;
-  connectEdge: (fromNodeId: string, fromPortId: string, toNodeId: string, toPortId: string) => void;
+  connectEdge: (fromNodeId: string, fromPortId: string, toNodeId: string, toPortId: string) => string | null;
   deleteNode: (nodeId: string) => void;
   deleteEdge: (edgeId: string) => void;
   moveNode: (nodeId: string, position: { x: number; y: number }) => void;
@@ -84,13 +84,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   connectEdge: (fromNodeId, fromPortId, toNodeId, toPortId) => {
     const state = get();
     const result = connectEdge(state.graph, fromNodeId, fromPortId, toNodeId, toPortId);
-    if ('error' in result) return;
+    if ('error' in result) return result.error;
     set({
       graph: result.graph,
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
     autosave(result.graph);
+    return null;
   },
 
   deleteNode: (nodeId) => {

@@ -1,6 +1,8 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { ImportButton, ExportButton } from '@/features/file-io/FileIO';
 import { BridgePanel } from '@/features/bridge-panel/BridgePanel';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { useMemo } from 'react';
 
 export function Toolbar() {
   const undo = useEditorStore((s) => s.undo);
@@ -9,6 +11,7 @@ export function Toolbar() {
   const documentName = useEditorStore((s) => s.documentName);
   const undoAvailable = useEditorStore((s) => s.history.undoStack.length > 0);
   const redoAvailable = useEditorStore((s) => s.history.redoStack.length > 0);
+  const datasetMeta = useMemo(() => nodeRegistry.getDatasetMeta(), []);
 
   return (
     <div
@@ -32,6 +35,14 @@ export function Toolbar() {
           {documentName}
           {dirty ? ' *' : ''}
         </span>
+        {datasetMeta && (
+          <span
+            style={{ fontSize: 10, color: '#555' }}
+            title={`Generated: ${datasetMeta.generatedAt}\nResonite: ${datasetMeta.resoniteVersion}\nNodes: ${datasetMeta.totalCount}`}
+          >
+            v{datasetMeta.resoniteVersion}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
