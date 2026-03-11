@@ -95,10 +95,11 @@ const STRUCT_PRIMITIVE_TYPES: Array<[string, string]> = [
   ['colorX', 'colorX'],
 ];
 
-/** 制約なし (参照型含む) のプリミティブ型 */
-const ALL_PRIMITIVE_TYPES: Array<[string, string]> = [
-  ...STRUCT_PRIMITIVE_TYPES,
+/** 参照型 (class 制約 / 制約なし の Object ノード向け) */
+const REFERENCE_TYPES: Array<[string, string]> = [
   ['string', 'string'],
+  ['User', 'User'],
+  ['Slot', 'Slot'],
 ];
 
 // ---- 型名ユーティリティ ----------------------------------------------------
@@ -238,9 +239,9 @@ function expandGenericNodes(
     const rawDef = rawTypes[node.type];
     const param = rawDef?.type.genericParameters?.find(p => p.name === paramName);
 
-    // 展開対象の型リストを決定
+    // 展開対象の型リストを決定: struct 制約あり → プリミティブ型、それ以外 → 参照型
     const typesToExpand: Array<[string, string]> =
-      param?.struct === true ? STRUCT_PRIMITIVE_TYPES : ALL_PRIMITIVE_TYPES;
+      param?.struct === true ? STRUCT_PRIMITIVE_TYPES : REFERENCE_TYPES;
 
     // ジェネリック定義はそのまま残す（テンプレートとして）
     result.push(node);
