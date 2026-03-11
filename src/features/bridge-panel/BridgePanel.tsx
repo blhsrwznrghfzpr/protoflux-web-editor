@@ -22,7 +22,9 @@ export function BridgePanel() {
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
   const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
-  const [url, setUrl] = useState('ws://localhost:11404');
+  const [url, setUrl] = useState(
+    import.meta.env.VITE_RESONITE_LINK_URL ?? 'ws://localhost:11404',
+  );
 
   useEffect(() => {
     const unsub = bridge.onStatusChange(setBridgeStatus);
