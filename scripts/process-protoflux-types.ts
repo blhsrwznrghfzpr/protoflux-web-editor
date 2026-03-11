@@ -247,7 +247,7 @@ function expandGenericNodes(
     result.push(node);
 
     for (const [resoniteName, displayName] of typesToExpand) {
-      const expandedType = node.type.replace('<>', `<>[${resoniteName}]`);
+      const expandedType = node.type.replace('<>', `<${resoniteName}>`);
       const expandedDisplayName = `${node.displayName}<${displayName}>`;
 
       const substituteType = (dataType: string): string =>

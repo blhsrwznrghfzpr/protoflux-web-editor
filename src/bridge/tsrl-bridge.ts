@@ -3,17 +3,9 @@ import type { DataModelOperationClientMessage } from '@eth0fox/tsrl';
 import type { ProtofluxDocument } from '@/shared/types';
 import type { BridgeStatus, IResoniteBridge } from './types';
 
-/**
- * ノードの型文字列を Resonite のコンポーネント型名に変換する。
- * 例: "[FrooxEngine]FrooxEngine.ProtoFlux.Core.ValueAdd<>[float]"
- *   → "FrooxEngine.ProtoFlux.Core.ValueAdd<float>"
- */
+/** ノードの型文字列からアセンブリプレフィックスを除去する。 */
 function toResoniteType(nodeType: string): string {
-  // アセンブリプレフィックス [FrooxEngine] 等を除去
-  let type = nodeType.replace(/^\[[^\]]+\]/, '');
-  // <>[typeName] → <typeName> に変換
-  type = type.replace(/<>\[([^\]]+)\]$/, '<$1>');
-  return type;
+  return nodeType.replace(/^\[[^\]]+\]/, '');
 }
 
 export class TsrlBridge implements IResoniteBridge {
