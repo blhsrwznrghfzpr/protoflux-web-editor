@@ -1,14 +1,31 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { ImportButton, ExportButton } from '@/features/file-io/FileIO';
 import { BridgePanel } from '@/features/bridge-panel/BridgePanel';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { useMemo, useState, useRef, useCallback, type KeyboardEvent } from 'react';
 
 export function Toolbar() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const dirty = useEditorStore((s) => s.dirty);
   const documentName = useEditorStore((s) => s.documentName);
+  const setDocumentName = useEditorStore((s) => s.setDocumentName);
   const undoAvailable = useEditorStore((s) => s.history.undoStack.length > 0);
   const redoAvailable = useEditorStore((s) => s.history.redoStack.length > 0);
+  const datasetMeta = useMemo(() => nodeRegistry.getDatasetMeta(), []);
+  const [editingName, setEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const commitName = useCallback(() => {
+    const val = nameInputRef.current?.value.trim();
+    if (val) setDocumentName(val);
+    setEditingName(false);
+  }, [setDocumentName]);
+
+  const handleNameKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') commitName();
+    if (e.key === 'Escape') setEditingName(false);
+  }, [commitName]);
 
   return (
     <div
@@ -28,10 +45,42 @@ export function Toolbar() {
         <span style={{ fontWeight: 'bold', marginRight: 8 }}>
           ProtoFlux Editor
         </span>
-        <span style={{ color: '#888' }}>
-          {documentName}
-          {dirty ? ' *' : ''}
-        </span>
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            autoFocus
+            defaultValue={documentName}
+            onBlur={commitName}
+            onKeyDown={handleNameKeyDown}
+            style={{
+              background: '#2a2a3a',
+              border: '1px solid #7c3aed',
+              borderRadius: 4,
+              color: '#e0e0e0',
+              padding: '2px 6px',
+              fontSize: 13,
+              fontFamily: 'monospace',
+              width: 160,
+            }}
+          />
+        ) : (
+          <span
+            onClick={() => setEditingName(true)}
+            title="Click to rename"
+            style={{ color: '#888', cursor: 'pointer' }}
+          >
+            {documentName}
+            {dirty ? ' *' : ''}
+          </span>
+        )}
+        {datasetMeta && (
+          <span
+            style={{ fontSize: 10, color: '#555' }}
+            title={`Generated: ${datasetMeta.generatedAt}\nResonite: ${datasetMeta.resoniteVersion}\nNodes: ${datasetMeta.totalCount}`}
+          >
+            v{datasetMeta.resoniteVersion}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

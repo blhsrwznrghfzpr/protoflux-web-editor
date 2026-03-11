@@ -9,6 +9,7 @@ export const PortSchema = z.object({
 export const NodeSchema = z.object({
   id: z.string(),
   type: z.string(),
+  displayName: z.string().optional(),
   position: z.object({ x: z.number(), y: z.number() }),
   inputs: z.array(PortSchema),
   outputs: z.array(PortSchema),

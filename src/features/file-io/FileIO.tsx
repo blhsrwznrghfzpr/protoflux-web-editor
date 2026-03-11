@@ -1,12 +1,15 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
-import { useCallback, useRef } from 'react';
+import { toast } from '@/shared/components/Toast';
+import { useCallback, useEffect, useRef } from 'react';
 
 export function useFileIO() {
   const graph = useEditorStore((s) => s.graph);
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
+  const setDirty = useEditorStore((s) => s.setDirty);
+  const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
 
   const handleExport = useCallback(() => {
     const doc = serialize(graph, documentName);
@@ -17,7 +20,8 @@ export function useFileIO() {
     a.download = `${documentName}.protoflux.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [graph, documentName]);
+    setDirty(false);
+  }, [graph, documentName, setDirty]);
 
   const handleImport = useCallback(
     (file: File) => {
@@ -29,16 +33,19 @@ export function useFileIO() {
           const { graph: importedGraph, warnings } = deserialize(json);
           const name = json.meta?.name ?? file.name.replace(/\.protoflux\.json$/, '');
           loadGraph(importedGraph, name);
+          toast('Graph imported successfully', 'success');
           if (warnings.length > 0) {
-            alert(`Import warnings:\n${warnings.join('\n')}`);
+            toast(`Import warnings: ${warnings.join(', ')}`, 'info');
           }
         } catch (err) {
-          alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          const msg = `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+          toast(msg, 'error');
+          setStatusMessage(msg, 'error');
         }
       };
       reader.readAsText(file);
     },
-    [loadGraph],
+    [loadGraph, setStatusMessage],
   );
 
   return { handleExport, handleImport };
@@ -73,6 +80,12 @@ export function ImportButton() {
 
 export function ExportButton() {
   const { handleExport } = useFileIO();
+
+  useEffect(() => {
+    const handler = () => handleExport();
+    window.addEventListener('protoflux-export', handler);
+    return () => window.removeEventListener('protoflux-export', handler);
+  }, [handleExport]);
 
   return (
     <button onClick={handleExport} style={toolbarButtonStyle}>

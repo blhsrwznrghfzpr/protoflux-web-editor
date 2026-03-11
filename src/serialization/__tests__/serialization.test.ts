@@ -3,6 +3,9 @@ import { serialize } from '../serialize';
 import { deserialize } from '../deserialize';
 import { addNode } from '@/editor-core/commands/add-node';
 import { connectEdge } from '@/editor-core/commands/connect-edge';
+import { deleteNode } from '@/editor-core/commands/delete-node';
+import { moveNode } from '@/editor-core/commands/move-node';
+import { updateParam } from '@/editor-core/commands/update-param';
 import { nodeRegistry } from '@/editor-core/model/node-registry';
 import type { GraphModel } from '@/shared/types';
 
@@ -11,17 +14,17 @@ beforeAll(() => {
     type: 'Test/FloatConst',
     category: 'Test/Constants',
     inputs: [],
-    outputs: [{ name: 'value', dataType: 'Float' }],
+    outputs: [{ name: 'value', dataType: 'float' }],
     capabilities: { editable: true, renderable: true },
   });
   nodeRegistry.register({
     type: 'Test/Add',
     category: 'Test/Math',
     inputs: [
-      { name: 'a', dataType: 'Float' },
-      { name: 'b', dataType: 'Float' },
+      { name: 'a', dataType: 'float' },
+      { name: 'b', dataType: 'float' },
     ],
-    outputs: [{ name: 'result', dataType: 'Float' }],
+    outputs: [{ name: 'result', dataType: 'float' }],
     capabilities: { editable: false, renderable: true },
   });
 });
@@ -68,5 +71,98 @@ describe('serialize / deserialize round-trip', () => {
         graph: { nodes: [], edges: [] },
       }),
     ).toThrow('Unsupported schema version');
+  });
+});
+
+describe('integration: Import → Edit → Export → re-Import', () => {
+  it('preserves full edit cycle (add, connect, move, param, delete)', () => {
+    // 1. Build a graph
+    let graph: GraphModel = { nodes: [], edges: [] };
+
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
+    if ('error' in r2) throw new Error(r2.error);
+    graph = r2.graph;
+
+    const r3 = addNode(graph, 'Test/FloatConst', { x: 0, y: 100 });
+    if ('error' in r3) throw new Error(r3.error);
+    graph = r3.graph;
+
+    // Connect n1 -> n2.a
+    const c1 = connectEdge(graph, r1.node.id, r1.node.outputs[0].id, r2.node.id, r2.node.inputs[0].id);
+    if ('error' in c1) throw new Error(c1.error);
+    graph = c1.graph;
+
+    // Connect n3 -> n2.b
+    const c2 = connectEdge(graph, r3.node.id, r3.node.outputs[0].id, r2.node.id, r2.node.inputs[1].id);
+    if ('error' in c2) throw new Error(c2.error);
+    graph = c2.graph;
+
+    // 2. Edit: move node, update params
+    graph = moveNode(graph, r2.node.id, { x: 300, y: 50 });
+    graph = updateParam(graph, r1.node.id, 'value', 42);
+
+    // 3. Delete one node (n3) — cascading edges
+    graph = deleteNode(graph, r3.node.id);
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges).toHaveLength(1); // only c1 survives
+
+    // 4. Export
+    const doc = serialize(graph, 'EditCycle');
+    const json = JSON.parse(JSON.stringify(doc)); // simulate file I/O
+
+    // 5. Re-import
+    const { graph: restored, warnings } = deserialize(json);
+    expect(warnings).toHaveLength(0);
+    expect(restored.nodes).toHaveLength(2);
+    expect(restored.edges).toHaveLength(1);
+
+    // Verify position was preserved
+    const addNode2 = restored.nodes.find((n) => n.type === 'Test/Add')!;
+    expect(addNode2.position).toEqual({ x: 300, y: 50 });
+
+    // Verify params were preserved
+    const constNode = restored.nodes.find((n) => n.type === 'Test/FloatConst')!;
+    expect(constNode.params?.value).toBe(42);
+
+    // Verify edge integrity
+    const edge = restored.edges[0];
+    expect(edge.from.nodeId).toBe(constNode.id);
+    expect(edge.to.nodeId).toBe(addNode2.id);
+  });
+
+  it('preserves unknown node raw data through round-trip', () => {
+    // Simulate importing a document with an unknown node type
+    const doc = {
+      schemaVersion: 1,
+      meta: { name: 'Unknown', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      graph: {
+        nodes: [
+          {
+            id: 'u1',
+            type: 'Custom/UnknownNode',
+            position: { x: 50, y: 50 },
+            inputs: [{ id: 'u1-in', name: 'data', dataType: 'Any' }],
+            outputs: [{ id: 'u1-out', name: 'result', dataType: 'Any' }],
+            params: { secret: 'keepme' },
+          },
+        ],
+        edges: [],
+      },
+    };
+
+    const { graph } = deserialize(doc);
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0].type).toBe('Custom/UnknownNode');
+    expect(graph.nodes[0].params?.secret).toBe('keepme');
+
+    // Re-export and verify
+    const reExported = serialize(graph, 'Unknown');
+    const { graph: restored } = deserialize(reExported);
+    expect(restored.nodes[0].type).toBe('Custom/UnknownNode');
+    expect(restored.nodes[0].params?.secret).toBe('keepme');
   });
 });

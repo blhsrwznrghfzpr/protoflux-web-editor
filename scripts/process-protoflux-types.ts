@@ -58,47 +58,48 @@ interface ProcessedOutput {
 // ---- プリミティブ型リスト --------------------------------------------------
 
 const SYSTEM_TYPE_MAP: Record<string, string> = {
-  'System.Single': 'Float',
-  'System.Double': 'Double',
-  'System.Int32': 'Int',
-  'System.Int64': 'Long',
-  'System.UInt32': 'UInt',
-  'System.UInt64': 'ULong',
-  'System.Boolean': 'Bool',
-  'System.String': 'String',
-  'System.Byte': 'Byte',
-  'System.SByte': 'SByte',
-  'System.Int16': 'Short',
-  'System.UInt16': 'UShort',
-  'System.Char': 'Char',
-  'System.Object': 'Object',
+  'System.Single': 'float',
+  'System.Double': 'double',
+  'System.Int32': 'int',
+  'System.Int64': 'long',
+  'System.UInt32': 'uint',
+  'System.UInt64': 'ulong',
+  'System.Boolean': 'bool',
+  'System.String': 'string',
+  'System.Byte': 'byte',
+  'System.SByte': 'sbyte',
+  'System.Int16': 'short',
+  'System.UInt16': 'ushort',
+  'System.Char': 'char',
+  'System.Object': 'object',
 };
 
 /** struct 制約を満たすプリミティブ型 (Resonite 内部型名, 表示名) */
 const STRUCT_PRIMITIVE_TYPES: Array<[string, string]> = [
-  ['bool', 'Bool'],
-  ['byte', 'Byte'],
-  ['sbyte', 'SByte'],
-  ['short', 'Short'],
-  ['ushort', 'UShort'],
-  ['int', 'Int'],
-  ['uint', 'UInt'],
-  ['long', 'Long'],
-  ['ulong', 'ULong'],
-  ['float', 'Float'],
-  ['double', 'Double'],
-  ['float2', 'Float2'],
-  ['float3', 'Float3'],
-  ['float4', 'Float4'],
-  ['floatQ', 'FloatQ'],
-  ['color', 'Color'],
-  ['colorX', 'ColorX'],
+  ['bool', 'bool'],
+  ['byte', 'byte'],
+  ['sbyte', 'sbyte'],
+  ['short', 'short'],
+  ['ushort', 'ushort'],
+  ['int', 'int'],
+  ['uint', 'uint'],
+  ['long', 'long'],
+  ['ulong', 'ulong'],
+  ['float', 'float'],
+  ['double', 'double'],
+  ['float2', 'float2'],
+  ['float3', 'float3'],
+  ['float4', 'float4'],
+  ['floatQ', 'floatQ'],
+  ['color', 'color'],
+  ['colorX', 'colorX'],
 ];
 
-/** 制約なし (参照型含む) のプリミティブ型 */
-const ALL_PRIMITIVE_TYPES: Array<[string, string]> = [
-  ...STRUCT_PRIMITIVE_TYPES,
-  ['string', 'String'],
+/** 参照型 (class 制約 / 制約なし の Object ノード向け) */
+const REFERENCE_TYPES: Array<[string, string]> = [
+  ['string', 'string'],
+  ['User', 'User'],
+  ['Slot', 'Slot'],
 ];
 
 // ---- 型名ユーティリティ ----------------------------------------------------
@@ -238,19 +239,19 @@ function expandGenericNodes(
     const rawDef = rawTypes[node.type];
     const param = rawDef?.type.genericParameters?.find(p => p.name === paramName);
 
-    // 展開対象の型リストを決定
+    // 展開対象の型リストを決定: struct 制約あり → プリミティブ型、それ以外 → 参照型
     const typesToExpand: Array<[string, string]> =
-      param?.struct === true ? STRUCT_PRIMITIVE_TYPES : ALL_PRIMITIVE_TYPES;
+      param?.struct === true ? STRUCT_PRIMITIVE_TYPES : REFERENCE_TYPES;
 
     // ジェネリック定義はそのまま残す（テンプレートとして）
     result.push(node);
 
     for (const [resoniteName, displayName] of typesToExpand) {
-      const expandedType = node.type.replace('<>', `<>[${resoniteName}]`);
+      const expandedType = node.type.replace('<>', `<${resoniteName}>`);
       const expandedDisplayName = `${node.displayName}<${displayName}>`;
 
       const substituteType = (dataType: string): string =>
-        dataType === paramName ? displayName : dataType;
+        dataType === paramName ? resoniteName : dataType;
 
       const expandedInputs = node.inputs.map(p => ({
         ...p,
@@ -266,7 +267,7 @@ function expandGenericNodes(
       const hasDataOutputs = expandedOutputs.some(p => p.kind === 'data');
       const hasTInputs = expandedInputs.some(p => p.kind === 'data');
       if (hasTInputs && !hasDataOutputs) {
-        expandedOutputs.push({ name: '*', dataType: displayName, kind: 'data' });
+        expandedOutputs.push({ name: '*', dataType: resoniteName, kind: 'data' });
       }
 
       result.push({
@@ -328,15 +329,15 @@ function main() {
   console.log(`Size: ${sizeKb} KB`);
   console.log(`Total nodes: ${expanded.length} (${raw.totalCount} original + ${expandedCount} expanded)`);
 
-  // サンプル表示 (ValueInput<Float>)
-  const sample = expanded.find(n => n.displayName === 'ValueInput<Float>');
+  // サンプル表示 (ValueInput<float>)
+  const sample = expanded.find(n => n.displayName === 'ValueInput<float>');
   if (sample) {
-    console.log('\nSample (ValueInput<Float>):');
+    console.log('\nSample (ValueInput<float>):');
     console.log(JSON.stringify(sample, null, 2));
   }
-  const addSample = expanded.find(n => n.displayName === 'ValueAdd<Float>');
+  const addSample = expanded.find(n => n.displayName === 'ValueAdd<float>');
   if (addSample) {
-    console.log('\nSample (ValueAdd<Float>):');
+    console.log('\nSample (ValueAdd<float>):');
     console.log(JSON.stringify(addSample, null, 2));
   }
 }

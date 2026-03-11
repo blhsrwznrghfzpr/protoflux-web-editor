@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { useMemo } from 'react';
+import type { EdgeModel } from '@/shared/types';
 
 export function Inspector() {
   const graph = useEditorStore((s) => s.graph);
@@ -11,6 +12,13 @@ export function Inspector() {
     if (selection.length !== 1) return null;
     return graph.nodes.find((n) => n.id === selection[0]) ?? null;
   }, [graph.nodes, selection]);
+
+  const connectedEdges = useMemo(() => {
+    if (!selectedNode) return [] as EdgeModel[];
+    return graph.edges.filter(
+      (e) => e.from.nodeId === selectedNode.id || e.to.nodeId === selectedNode.id,
+    );
+  }, [graph.edges, selectedNode]);
 
   if (!selectedNode) {
     return (
@@ -42,7 +50,14 @@ export function Inspector() {
         overflow: 'auto',
       }}
     >
-      <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>{selectedNode.type}</h3>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>
+        {selectedNode.displayName ?? selectedNode.type}
+      </h3>
+      {selectedNode.displayName && selectedNode.displayName !== selectedNode.type && (
+        <div style={{ marginBottom: 8, fontSize: 10, color: '#666', wordBreak: 'break-all' }}>
+          {selectedNode.type}
+        </div>
+      )}
 
       <div style={{ marginBottom: 12, fontSize: 11, color: '#888' }}>
         ID: {selectedNode.id}
@@ -107,6 +122,27 @@ export function Inspector() {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {connectedEdges.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ color: '#888', marginBottom: 4 }}>Connections ({connectedEdges.length})</div>
+          {connectedEdges.map((edge) => {
+            const isOutput = edge.from.nodeId === selectedNode.id;
+            const otherNodeId = isOutput ? edge.to.nodeId : edge.from.nodeId;
+            const otherNode = graph.nodes.find((n) => n.id === otherNodeId);
+            const otherLabel = otherNode?.displayName ?? otherNode?.type ?? otherNodeId;
+            const portId = isOutput ? edge.from.portId : edge.to.portId;
+            return (
+              <div key={edge.id} style={{ marginBottom: 2, fontSize: 11 }}>
+                <span style={{ color: isOutput ? '#2ecc71' : '#3498db' }}>
+                  {isOutput ? '\u2192' : '\u2190'}
+                </span>{' '}
+                {portId} \u2014 {otherLabel}
+              </div>
+            );
+          })}
         </div>
       )}
 
