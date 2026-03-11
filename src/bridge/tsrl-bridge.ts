@@ -3,10 +3,6 @@ import type { DataModelOperationClientMessage } from '@eth0fox/tsrl';
 import type { ProtofluxDocument } from '@/shared/types';
 import type { BridgeStatus, IResoniteBridge } from './types';
 
-/** ノードの型文字列からアセンブリプレフィックスを除去する。 */
-function toResoniteType(nodeType: string): string {
-  return nodeType.replace(/^\[[^\]]+\]/, '');
-}
 
 export class TsrlBridge implements IResoniteBridge {
   private link: ResoniteLink | null = null;
@@ -105,7 +101,7 @@ export class TsrlBridge implements IResoniteBridge {
         containerSlotId: slotId,
         data: {
           id: componentId,
-          componentType: toResoniteType(node.type),
+          componentType: node.type,
           members: {},
         },
       });
