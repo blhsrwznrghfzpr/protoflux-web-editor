@@ -3,6 +3,7 @@ import { Canvas } from '@/features/canvas/Canvas';
 import { Palette } from '@/features/palette/Palette';
 import { Inspector } from '@/features/inspector/Inspector';
 import { Toolbar } from '@/features/toolbar/Toolbar';
+import { StatusBar } from '@/features/status-bar/StatusBar';
 import { ToastContainer } from '@/shared/components/Toast';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useBeforeUnload } from './hooks/use-before-unload';
@@ -29,6 +30,7 @@ function EditorLayout() {
         <Canvas />
         <Inspector />
       </div>
+      <StatusBar />
     </div>
   );
 }

@@ -148,6 +148,11 @@ export function Palette() {
                     <button
                       key={def.type}
                       onClick={() => handleAdd(def.type)}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/protoflux-node-type', def.type);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
                       title={def.type}
                       style={{
                         display: 'block',
@@ -158,7 +163,7 @@ export function Palette() {
                         border: '1px solid transparent',
                         borderRadius: 4,
                         color: '#d0d0d0',
-                        cursor: 'pointer',
+                        cursor: 'grab',
                         textAlign: 'left',
                         fontSize: 12,
                         fontFamily: 'monospace',

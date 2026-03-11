@@ -9,6 +9,12 @@ import { updateParam } from '@/editor-core/commands/update-param';
 import type { BridgeStatus, IResoniteBridge } from '@/bridge/types';
 import { NoopBridge } from '@/bridge/noop-bridge';
 
+export interface StatusMessage {
+  text: string;
+  type: 'info' | 'error' | 'warning';
+  timestamp: number;
+}
+
 interface EditorState {
   graph: GraphModel;
   selection: NodeId[];
@@ -18,6 +24,7 @@ interface EditorState {
   documentName: string;
   bridge: IResoniteBridge;
   bridgeStatus: BridgeStatus;
+  statusMessage: StatusMessage | null;
 
   // Actions
   addNode: (type: string, position: { x: number; y: number }) => void;
@@ -35,6 +42,8 @@ interface EditorState {
   setDirty: (dirty: boolean) => void;
   setBridge: (bridge: IResoniteBridge) => void;
   setBridgeStatus: (status: BridgeStatus) => void;
+  setStatusMessage: (text: string, type: StatusMessage['type']) => void;
+  clearStatusMessage: () => void;
 }
 
 const AUTOSAVE_KEY = 'protoflux-autosave';
@@ -68,6 +77,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   documentName: 'Untitled',
   bridge: new NoopBridge(),
   bridgeStatus: 'disconnected',
+  statusMessage: null,
 
   addNode: (type, position) => {
     const state = get();
@@ -120,7 +130,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   moveNode: (nodeId, position) => {
     const state = get();
     const newGraph = moveNode(state.graph, nodeId, position);
-    set({ graph: newGraph, dirty: true });
+    set({
+      graph: newGraph,
+      history: pushHistory(state.history, state.graph),
+      dirty: true,
+    });
     autosave(newGraph);
   },
 
@@ -170,4 +184,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setDirty: (dirty) => set({ dirty }),
   setBridge: (bridge) => set({ bridge }),
   setBridgeStatus: (status) => set({ bridgeStatus: status }),
+  setStatusMessage: (text, type) =>
+    set({ statusMessage: { text, type, timestamp: Date.now() } }),
+  clearStatusMessage: () => set({ statusMessage: null }),
 }));

@@ -21,6 +21,7 @@ export function BridgePanel() {
   const graph = useEditorStore((s) => s.graph);
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
+  const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
   const [url, setUrl] = useState('ws://localhost:11404');
 
   useEffect(() => {
@@ -37,8 +38,9 @@ export function BridgePanel() {
       toast('Connected to Resonite', 'success');
     } catch {
       toast('Failed to connect to Resonite', 'error');
+      setStatusMessage('Connection to Resonite failed', 'error');
     }
-  }, [url, setBridge, setBridgeStatus]);
+  }, [url, setBridge, setBridgeStatus, setStatusMessage]);
 
   const handleDisconnect = useCallback(async () => {
     await bridge.disconnect();
@@ -51,9 +53,11 @@ export function BridgePanel() {
       await withRetry(() => bridge.pushGraph(doc));
       toast('Graph pushed to Resonite', 'success');
     } catch (err) {
-      toast(`Push failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      const msg = `Push failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      toast(msg, 'error');
+      setStatusMessage(msg, 'error');
     }
-  }, [bridge, graph, documentName]);
+  }, [bridge, graph, documentName, setStatusMessage]);
 
   const handlePull = useCallback(async () => {
     if (!bridge.pullGraph) {
@@ -70,9 +74,11 @@ export function BridgePanel() {
         toast('Graph pulled from Resonite', 'success');
       }
     } catch (err) {
-      toast(`Pull failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      const msg = `Pull failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      toast(msg, 'error');
+      setStatusMessage(msg, 'error');
     }
-  }, [bridge, loadGraph]);
+  }, [bridge, loadGraph, setStatusMessage]);
 
   const isConnected = bridgeStatus === 'connected';
 

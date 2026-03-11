@@ -8,6 +8,7 @@ export function useFileIO() {
   const graph = useEditorStore((s) => s.graph);
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
+  const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
 
   const handleExport = useCallback(() => {
     const doc = serialize(graph, documentName);
@@ -35,12 +36,14 @@ export function useFileIO() {
             toast(`Import warnings: ${warnings.join(', ')}`, 'info');
           }
         } catch (err) {
-          toast(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+          const msg = `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+          toast(msg, 'error');
+          setStatusMessage(msg, 'error');
         }
       };
       reader.readAsText(file);
     },
-    [loadGraph],
+    [loadGraph, setStatusMessage],
   );
 
   return { handleExport, handleImport };

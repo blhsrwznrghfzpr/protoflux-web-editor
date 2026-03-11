@@ -3,6 +3,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  useReactFlow,
   type Node,
   type Edge,
   type OnConnect,
@@ -17,7 +18,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/app/providers/editor-store';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, type DragEvent } from 'react';
 import type { NodeModel } from '@/shared/types';
 import { toast } from '@/shared/components/Toast';
 import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
@@ -131,6 +132,30 @@ export function Canvas() {
   const storeMoveNode = useEditorStore((s) => s.moveNode);
   const storeDeleteNode = useEditorStore((s) => s.deleteNode);
   const storeDeleteEdge = useEditorStore((s) => s.deleteEdge);
+  const storeAddNode = useEditorStore((s) => s.addNode);
+  const reactFlowInstance = useReactFlow();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const nodeType = e.dataTransfer.getData('application/protoflux-node-type');
+      if (!nodeType || !wrapperRef.current) return;
+
+      const bounds = wrapperRef.current.getBoundingClientRect();
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: e.clientX - bounds.left,
+        y: e.clientY - bounds.top,
+      });
+      storeAddNode(nodeType, position);
+    },
+    [reactFlowInstance, storeAddNode],
+  );
 
   const nodes: Node[] = useMemo(
     () =>
@@ -232,7 +257,7 @@ export function Canvas() {
   );
 
   return (
-    <div style={{ flex: 1, height: '100%' }}>
+    <div ref={wrapperRef} style={{ flex: 1, height: '100%' }} onDragOver={onDragOver} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
