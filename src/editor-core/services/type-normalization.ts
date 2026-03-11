@@ -10,18 +10,18 @@
 
 /** C# 標準型名 → 短縮表示名のマッピング */
 const SYSTEM_TYPE_MAP: Record<string, string> = {
-  'System.Single': 'Float',
-  'System.Double': 'Double',
-  'System.Int32': 'Int',
-  'System.Int64': 'Long',
-  'System.Boolean': 'Bool',
-  'System.String': 'String',
-  'System.Byte': 'Byte',
-  'System.UInt16': 'UShort',
-  'System.UInt32': 'UInt',
-  'System.UInt64': 'ULong',
-  'System.Int16': 'Short',
-  'System.Object': 'Object',
+  'System.Single': 'float',
+  'System.Double': 'double',
+  'System.Int32': 'int',
+  'System.Int64': 'long',
+  'System.Boolean': 'bool',
+  'System.String': 'string',
+  'System.Byte': 'byte',
+  'System.UInt16': 'ushort',
+  'System.UInt32': 'uint',
+  'System.UInt64': 'ulong',
+  'System.Int16': 'short',
+  'System.Object': 'object',
 };
 
 /**

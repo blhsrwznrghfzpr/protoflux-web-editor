@@ -10,7 +10,7 @@ beforeAll(() => {
     isExpanded: false,
     hasGenericField: false,
     inputs: [],
-    outputs: [{ name: 'value', dataType: 'Float' }],
+    outputs: [{ name: 'value', dataType: 'float' }],
     capabilities: { editable: true, renderable: true },
   });
   nodeRegistry.register({
@@ -21,10 +21,10 @@ beforeAll(() => {
     isExpanded: false,
     hasGenericField: false,
     inputs: [
-      { name: 'a', dataType: 'Float' },
-      { name: 'b', dataType: 'Float' },
+      { name: 'a', dataType: 'float' },
+      { name: 'b', dataType: 'float' },
     ],
-    outputs: [{ name: 'result', dataType: 'Float' }],
+    outputs: [{ name: 'result', dataType: 'float' }],
     capabilities: { editable: false, renderable: true },
   });
   nodeRegistry.register({
@@ -35,7 +35,7 @@ beforeAll(() => {
     isExpanded: false,
     hasGenericField: false,
     inputs: [],
-    outputs: [{ name: 'value', dataType: 'Bool' }],
+    outputs: [{ name: 'value', dataType: 'bool' }],
     capabilities: { editable: true, renderable: true },
   });
   nodeRegistry.register({
@@ -56,8 +56,8 @@ beforeAll(() => {
     genericParamNames: ['T'],
     isExpanded: true,
     hasGenericField: true,
-    inputs: [{ name: 'input', dataType: 'Float' }],
-    outputs: [{ name: 'output', dataType: 'Float' }],
+    inputs: [{ name: 'input', dataType: 'float' }],
+    outputs: [{ name: 'output', dataType: 'float' }],
     capabilities: { editable: false, renderable: true },
   });
 });

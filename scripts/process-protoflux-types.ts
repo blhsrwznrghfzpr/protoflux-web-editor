@@ -58,20 +58,20 @@ interface ProcessedOutput {
 // ---- プリミティブ型リスト --------------------------------------------------
 
 const SYSTEM_TYPE_MAP: Record<string, string> = {
-  'System.Single': 'Float',
-  'System.Double': 'Double',
-  'System.Int32': 'Int',
-  'System.Int64': 'Long',
-  'System.UInt32': 'UInt',
-  'System.UInt64': 'ULong',
-  'System.Boolean': 'Bool',
-  'System.String': 'String',
-  'System.Byte': 'Byte',
-  'System.SByte': 'SByte',
-  'System.Int16': 'Short',
-  'System.UInt16': 'UShort',
-  'System.Char': 'Char',
-  'System.Object': 'Object',
+  'System.Single': 'float',
+  'System.Double': 'double',
+  'System.Int32': 'int',
+  'System.Int64': 'long',
+  'System.UInt32': 'uint',
+  'System.UInt64': 'ulong',
+  'System.Boolean': 'bool',
+  'System.String': 'string',
+  'System.Byte': 'byte',
+  'System.SByte': 'sbyte',
+  'System.Int16': 'short',
+  'System.UInt16': 'ushort',
+  'System.Char': 'char',
+  'System.Object': 'object',
 };
 
 /** struct 制約を満たすプリミティブ型 (Resonite 内部型名, 表示名) */
@@ -250,7 +250,7 @@ function expandGenericNodes(
       const expandedDisplayName = `${node.displayName}<${displayName}>`;
 
       const substituteType = (dataType: string): string =>
-        dataType === paramName ? displayName : dataType;
+        dataType === paramName ? resoniteName : dataType;
 
       const expandedInputs = node.inputs.map(p => ({
         ...p,
@@ -266,7 +266,7 @@ function expandGenericNodes(
       const hasDataOutputs = expandedOutputs.some(p => p.kind === 'data');
       const hasTInputs = expandedInputs.some(p => p.kind === 'data');
       if (hasTInputs && !hasDataOutputs) {
-        expandedOutputs.push({ name: '*', dataType: displayName, kind: 'data' });
+        expandedOutputs.push({ name: '*', dataType: resoniteName, kind: 'data' });
       }
 
       result.push({

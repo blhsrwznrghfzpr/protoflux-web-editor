@@ -14,17 +14,17 @@ beforeAll(() => {
     type: 'Test/FloatConst',
     category: 'Test/Constants',
     inputs: [],
-    outputs: [{ name: 'value', dataType: 'Float' }],
+    outputs: [{ name: 'value', dataType: 'float' }],
     capabilities: { editable: true, renderable: true },
   });
   nodeRegistry.register({
     type: 'Test/Add',
     category: 'Test/Math',
     inputs: [
-      { name: 'a', dataType: 'Float' },
-      { name: 'b', dataType: 'Float' },
+      { name: 'a', dataType: 'float' },
+      { name: 'b', dataType: 'float' },
     ],
-    outputs: [{ name: 'result', dataType: 'Float' }],
+    outputs: [{ name: 'result', dataType: 'float' }],
     capabilities: { editable: false, renderable: true },
   });
 });

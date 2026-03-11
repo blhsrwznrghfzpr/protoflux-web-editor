@@ -25,10 +25,10 @@ import { checkTypeCompatibility } from '@/editor-core/services/type-compatibilit
 import { nodeRegistry, type NodeDefinition } from '@/editor-core/model/node-registry';
 
 const DATA_TYPE_COLORS: Record<string, string> = {
-  Bool: '#e74c3c',
-  Int: '#3498db',
-  Float: '#2ecc71',
-  String: '#f39c12',
+  bool: '#e74c3c',
+  int: '#3498db',
+  float: '#2ecc71',
+  string: '#f39c12',
 };
 
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {

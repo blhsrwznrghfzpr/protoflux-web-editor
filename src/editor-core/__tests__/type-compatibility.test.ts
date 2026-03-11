@@ -3,72 +3,59 @@ import { checkTypeCompatibility, getCompatibleTypes } from '../services/type-com
 
 describe('checkTypeCompatibility', () => {
   it('returns compatible for exact match', () => {
-    const result = checkTypeCompatibility('Float', 'Float');
+    const result = checkTypeCompatibility('float', 'float');
     expect(result.compatible).toBe(true);
     expect(result.implicit).toBe(false);
   });
 
-  it('returns compatible with implicit for Int -> Float', () => {
-    const result = checkTypeCompatibility('Int', 'Float');
+  it('returns compatible with implicit for int -> float', () => {
+    const result = checkTypeCompatibility('int', 'float');
     expect(result.compatible).toBe(true);
     expect(result.implicit).toBe(true);
   });
 
-  it('returns incompatible for Float -> Int (no reverse conversion)', () => {
-    const result = checkTypeCompatibility('Float', 'Int');
+  it('returns incompatible for float -> int (no reverse conversion)', () => {
+    const result = checkTypeCompatibility('float', 'int');
     expect(result.compatible).toBe(false);
   });
 
   it('returns incompatible for completely different types', () => {
-    const result = checkTypeCompatibility('Bool', 'Float');
+    const result = checkTypeCompatibility('bool', 'float');
     expect(result.compatible).toBe(false);
   });
 
-  it('supports Int -> Double', () => {
-    const result = checkTypeCompatibility('Int', 'Double');
+  it('supports int -> double', () => {
+    const result = checkTypeCompatibility('int', 'double');
     expect(result.compatible).toBe(true);
     expect(result.implicit).toBe(true);
   });
 
-  it('supports Float -> Double', () => {
-    const result = checkTypeCompatibility('Float', 'Double');
+  it('supports float -> double', () => {
+    const result = checkTypeCompatibility('float', 'double');
     expect(result.compatible).toBe(true);
     expect(result.implicit).toBe(true);
   });
 
-  it('matches case-insensitively: colorX == ColorX', () => {
+  it('rejects mismatched case (data must be consistent)', () => {
     const result = checkTypeCompatibility('colorX', 'ColorX');
-    expect(result.compatible).toBe(true);
-    expect(result.implicit).toBe(false);
-  });
-
-  it('matches case-insensitively: float3 == Float3', () => {
-    const result = checkTypeCompatibility('float3', 'Float3');
-    expect(result.compatible).toBe(true);
-    expect(result.implicit).toBe(false);
-  });
-
-  it('supports implicit conversion with mixed case: int -> Float', () => {
-    const result = checkTypeCompatibility('int', 'Float');
-    expect(result.compatible).toBe(true);
-    expect(result.implicit).toBe(true);
+    expect(result.compatible).toBe(false);
   });
 });
 
 describe('getCompatibleTypes', () => {
   it('returns self type always', () => {
-    expect(getCompatibleTypes('Bool')).toContain('Bool');
+    expect(getCompatibleTypes('bool')).toContain('bool');
   });
 
-  it('returns convertible types for Int', () => {
-    const types = getCompatibleTypes('Int');
-    expect(types).toContain('Int');
+  it('returns convertible types for int', () => {
+    const types = getCompatibleTypes('int');
+    expect(types).toContain('int');
     expect(types).toContain('float');
     expect(types).toContain('double');
   });
 
-  it('returns no extra types for Bool', () => {
-    const types = getCompatibleTypes('Bool');
-    expect(types).toEqual(['Bool']);
+  it('returns no extra types for bool', () => {
+    const types = getCompatibleTypes('bool');
+    expect(types).toEqual(['bool']);
   });
 });
