@@ -153,10 +153,9 @@ export function Canvas() {
       const nodeType = e.dataTransfer.getData('application/protoflux-node-type');
       if (!nodeType || !wrapperRef.current) return;
 
-      const bounds = wrapperRef.current.getBoundingClientRect();
       const position = reactFlowInstance.screenToFlowPosition({
-        x: e.clientX - bounds.left,
-        y: e.clientY - bounds.top,
+        x: e.clientX,
+        y: e.clientY,
       });
       storeAddNode(nodeType, position);
     },
@@ -265,11 +264,9 @@ export function Canvas() {
   const onPaneContextMenu = useCallback(
     (event: MouseEvent | globalThis.MouseEvent) => {
       event.preventDefault();
-      if (!wrapperRef.current) return;
-      const bounds = wrapperRef.current.getBoundingClientRect();
       const flowPosition = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
+        x: event.clientX,
+        y: event.clientY,
       });
       setContextMenu({ x: event.clientX, y: event.clientY, flowPosition });
       setContextSearch('');
