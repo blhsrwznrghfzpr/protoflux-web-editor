@@ -6,6 +6,7 @@ import { connectEdge } from '@/editor-core/commands/connect-edge';
 import { deleteNode, deleteEdge } from '@/editor-core/commands/delete-node';
 import { moveNode } from '@/editor-core/commands/move-node';
 import { updateParam } from '@/editor-core/commands/update-param';
+import { duplicateNodes } from '@/editor-core/commands/duplicate-node';
 import type { BridgeStatus, IResoniteBridge } from '@/bridge/types';
 import { NoopBridge } from '@/bridge/noop-bridge';
 
@@ -33,6 +34,7 @@ interface EditorState {
   deleteEdge: (edgeId: string) => void;
   moveNode: (nodeId: string, position: { x: number; y: number }) => void;
   updateParam: (nodeId: string, key: string, value: unknown) => void;
+  duplicateSelected: () => void;
   setSelection: (nodeIds: string[]) => void;
   setViewport: (viewport: { x: number; y: number; zoom: number }) => void;
   undo: () => void;
@@ -172,6 +174,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const newGraph = updateParam(state.graph, nodeId, key, value);
     set({
       graph: newGraph,
+      history: pushHistory(state.history, state.graph),
+      dirty: true,
+    });
+    scheduleAutosave();
+  },
+
+  duplicateSelected: () => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const result = duplicateNodes(state.graph, state.selection);
+    set({
+      graph: result.graph,
+      selection: result.newNodes.map((n) => n.id),
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });

@@ -46,16 +46,7 @@ export function useKeyboardShortcuts() {
       // Duplicate: Ctrl+D
       if (isCtrl && e.key === 'd' && !isInputFocused) {
         e.preventDefault();
-        const state = useEditorStore.getState();
-        for (const nodeId of state.selection) {
-          const node = state.graph.nodes.find((n) => n.id === nodeId);
-          if (node) {
-            state.addNode(node.type, {
-              x: node.position.x + 40,
-              y: node.position.y + 40,
-            });
-          }
-        }
+        useEditorStore.getState().duplicateSelected();
         return;
       }
 
