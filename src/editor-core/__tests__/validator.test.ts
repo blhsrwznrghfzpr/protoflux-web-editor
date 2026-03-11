@@ -173,6 +173,30 @@ describe('canConnect', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('allows implicit type conversion (Int -> Float)', () => {
+    const graph: GraphModel = {
+      nodes: [
+        {
+          id: 'int-const',
+          type: 'Constants/Int',
+          position: { x: 0, y: 0 },
+          inputs: [],
+          outputs: [{ id: 'int-out', name: 'value', dataType: 'Int' }],
+        },
+        {
+          id: 'float-add',
+          type: 'Math/Add',
+          position: { x: 200, y: 0 },
+          inputs: [{ id: 'float-in', name: 'a', dataType: 'Float' }],
+          outputs: [{ id: 'float-out', name: 'result', dataType: 'Float' }],
+        },
+      ],
+      edges: [],
+    };
+    const result = canConnect(graph, 'int-const', 'int-out', 'float-add', 'float-in');
+    expect(result.ok).toBe(true);
+  });
+
   it('rejects type mismatches', () => {
     const graph = makeGraph();
     const result = canConnect(graph, 'n3', 'n3-out-value', 'n2', 'n2-in-a');

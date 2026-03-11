@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
+import { toast } from '@/shared/components/Toast';
 import { useCallback, useRef } from 'react';
 
 export function useFileIO() {
@@ -29,11 +30,12 @@ export function useFileIO() {
           const { graph: importedGraph, warnings } = deserialize(json);
           const name = json.meta?.name ?? file.name.replace(/\.protoflux\.json$/, '');
           loadGraph(importedGraph, name);
+          toast('Graph imported successfully', 'success');
           if (warnings.length > 0) {
-            alert(`Import warnings:\n${warnings.join('\n')}`);
+            toast(`Import warnings: ${warnings.join(', ')}`, 'info');
           }
         } catch (err) {
-          alert(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          toast(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
       };
       reader.readAsText(file);

@@ -1,4 +1,5 @@
 import type { GraphModel, NodeId, PortId } from '@/shared/types';
+import { checkTypeCompatibility } from './type-compatibility';
 
 export interface ValidationError {
   type: 'port-not-found' | 'type-mismatch' | 'duplicate-input' | 'cycle-detected';
@@ -55,8 +56,9 @@ export function validateGraph(graph: GraphModel): ValidationError[] {
       continue;
     }
 
-    // Type check (strict mode)
-    if (outputPort.dataType !== inputPort.dataType) {
+    // Type check (strict mode with optional implicit conversions)
+    const compat = checkTypeCompatibility(outputPort.dataType, inputPort.dataType);
+    if (!compat.compatible) {
       errors.push({
         type: 'type-mismatch',
         message: `Edge ${edge.id}: type mismatch ${outputPort.dataType} → ${inputPort.dataType}`,
@@ -182,7 +184,8 @@ export function canConnect(
     return { ok: false, reason: 'Port not found' };
   }
 
-  if (outputPort.dataType !== inputPort.dataType) {
+  const compat = checkTypeCompatibility(outputPort.dataType, inputPort.dataType);
+  if (!compat.compatible) {
     return { ok: false, reason: `Type mismatch: ${outputPort.dataType} → ${inputPort.dataType}` };
   }
 

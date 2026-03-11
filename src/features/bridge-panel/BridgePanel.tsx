@@ -3,6 +3,7 @@ import { ResoniteLinkBridge } from '@/bridge/resonite-link-bridge';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
 import { toast } from '@/shared/components/Toast';
+import { withRetry } from '@/shared/utils';
 import { useCallback, useEffect, useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -47,7 +48,7 @@ export function BridgePanel() {
   const handlePush = useCallback(async () => {
     try {
       const doc = serialize(graph, documentName);
-      await bridge.pushGraph(doc);
+      await withRetry(() => bridge.pushGraph(doc));
       toast('Graph pushed to Resonite', 'success');
     } catch (err) {
       toast(`Push failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
@@ -60,7 +61,7 @@ export function BridgePanel() {
       return;
     }
     try {
-      const doc = await bridge.pullGraph();
+      const doc = await withRetry(() => bridge.pullGraph!());
       const { graph: pulledGraph, warnings } = deserialize(doc);
       loadGraph(pulledGraph, doc.meta.name);
       if (warnings.length > 0) {
