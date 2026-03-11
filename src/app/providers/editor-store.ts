@@ -46,35 +46,64 @@ interface EditorState {
   clearStatusMessage: () => void;
 }
 
+// ---- Auto-save with debounce ------------------------------------------------
+
 const AUTOSAVE_KEY = 'protoflux-autosave';
 
-function loadAutosave(): GraphModel | null {
+interface AutosaveData {
+  graph: GraphModel;
+  documentName?: string;
+  viewport?: { x: number; y: number; zoom: number };
+}
+
+function loadAutosave(): AutosaveData | null {
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // 旧形式互換: graph だけ直接保存されていた場合
+    if (parsed.nodes) return { graph: parsed };
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function autosave(graph: GraphModel) {
-  try {
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(graph));
-  } catch {
-    // Ignore storage errors
-  }
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    const state = useEditorStore.getState();
+    try {
+      const data: AutosaveData = {
+        graph: state.graph,
+        documentName: state.documentName,
+        viewport: state.viewport,
+      };
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    } catch {
+      // Ignore storage errors
+    }
+  }, 500);
 }
 
-const initialGraph = loadAutosave() ?? { nodes: [], edges: [] };
+// ---- Initial state ----------------------------------------------------------
+
+const savedData = loadAutosave();
+const initialGraph = savedData?.graph ?? { nodes: [], edges: [] };
+const initialDocName = savedData?.documentName ?? 'Untitled';
+const initialViewport = savedData?.viewport ?? { x: 0, y: 0, zoom: 1 };
+
+// ---- Store ------------------------------------------------------------------
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   graph: initialGraph,
   selection: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
+  viewport: initialViewport,
   history: { undoStack: [], redoStack: [] },
   dirty: false,
-  documentName: 'Untitled',
+  documentName: initialDocName,
   bridge: new NoopBridge(),
   bridgeStatus: 'disconnected',
   statusMessage: null,
@@ -88,7 +117,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(result.graph);
+    scheduleAutosave();
   },
 
   connectEdge: (fromNodeId, fromPortId, toNodeId, toPortId) => {
@@ -100,7 +129,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(result.graph);
+    scheduleAutosave();
     return null;
   },
 
@@ -113,7 +142,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(newGraph);
+    scheduleAutosave();
   },
 
   deleteEdge: (edgeId) => {
@@ -124,7 +153,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(newGraph);
+    scheduleAutosave();
   },
 
   moveNode: (nodeId, position) => {
@@ -135,7 +164,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(newGraph);
+    scheduleAutosave();
   },
 
   updateParam: (nodeId, key, value) => {
@@ -146,19 +175,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
-    autosave(newGraph);
+    scheduleAutosave();
   },
 
   setSelection: (nodeIds) => set({ selection: nodeIds }),
 
-  setViewport: (viewport) => set({ viewport }),
+  setViewport: (viewport) => {
+    set({ viewport });
+    scheduleAutosave();
+  },
 
   undo: () => {
     const state = get();
     const result = undo(state.history, state.graph);
     if (!result) return;
     set({ graph: result.graph, history: result.history, dirty: true });
-    autosave(result.graph);
+    scheduleAutosave();
   },
 
   redo: () => {
@@ -166,7 +198,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const result = redo(state.history, state.graph);
     if (!result) return;
     set({ graph: result.graph, history: result.history, dirty: true });
-    autosave(result.graph);
+    scheduleAutosave();
   },
 
   loadGraph: (graph, name) => {
@@ -177,10 +209,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: false,
       documentName: name ?? 'Untitled',
     });
-    autosave(graph);
+    scheduleAutosave();
   },
 
-  setDocumentName: (name) => set({ documentName: name }),
+  setDocumentName: (name) => {
+    set({ documentName: name });
+    scheduleAutosave();
+  },
   setDirty: (dirty) => set({ dirty }),
   setBridge: (bridge) => set({ bridge }),
   setBridgeStatus: (status) => set({ bridgeStatus: status }),
