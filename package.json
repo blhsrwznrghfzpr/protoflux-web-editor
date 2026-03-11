@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch-types": "tsx scripts/fetch-protoflux-types.ts",
-    "process-types": "tsx scripts/process-protoflux-types.ts"
+    "process-types": "tsx scripts/process-protoflux-types.ts",
+    "integration-test:push": "tsx scripts/integration-test-push.ts"
   },
   "repository": {
     "type": "git",
