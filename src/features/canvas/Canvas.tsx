@@ -21,6 +21,7 @@ import { useCallback, useMemo } from 'react';
 import type { NodeModel } from '@/shared/types';
 import { toast } from '@/shared/components/Toast';
 import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
 
 const DATA_TYPE_COLORS: Record<string, string> = {
   Bool: '#e74c3c',
@@ -32,12 +33,13 @@ const DATA_TYPE_COLORS: Record<string, string> = {
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {
   const model = data.model;
   const label = model.displayName ?? model.type;
+  const isUnknown = !nodeRegistry.get(model.type);
 
   return (
     <div
       style={{
         background: selected ? '#2a2a3a' : '#1e1e2e',
-        border: `2px solid ${selected ? '#7c3aed' : '#444'}`,
+        border: `2px solid ${selected ? '#7c3aed' : isUnknown ? '#e67e22' : '#444'}`,
         borderRadius: 8,
         padding: 0,
         minWidth: 160,
@@ -48,15 +50,23 @@ function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>
     >
       <div
         style={{
-          background: '#333',
+          background: isUnknown ? '#5a3a1e' : '#333',
           padding: '6px 10px',
           borderTopLeftRadius: 6,
           borderTopRightRadius: 6,
           fontWeight: 'bold',
           fontSize: 13,
-          borderBottom: '1px solid #555',
+          borderBottom: `1px solid ${isUnknown ? '#e67e22' : '#555'}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
+        {isUnknown && (
+          <span title="Unknown node type - preserved for round-trip" style={{ fontSize: 14 }}>
+            &#x26A0;
+          </span>
+        )}
         {label}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>

@@ -90,7 +90,8 @@ export function Palette() {
       <div style={{ padding: 8 }}>
         <input
           type="text"
-          placeholder="Search nodes..."
+          placeholder="Search nodes... (Ctrl+F)"
+          data-palette-search
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
