@@ -1,5 +1,5 @@
 import { useEditorStore } from '@/app/providers/editor-store';
-import { ResoniteLinkBridge } from '@/bridge/resonite-link-bridge';
+import { TsrlBridge } from '@/bridge/tsrl-bridge';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
 import { toast } from '@/shared/components/Toast';
@@ -30,7 +30,7 @@ export function BridgePanel() {
   }, [bridge, setBridgeStatus]);
 
   const handleConnect = useCallback(async () => {
-    const newBridge = new ResoniteLinkBridge(url);
+    const newBridge = new TsrlBridge(url);
     setBridge(newBridge);
     newBridge.onStatusChange(setBridgeStatus);
     try {
