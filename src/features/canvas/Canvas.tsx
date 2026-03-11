@@ -18,11 +18,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/app/providers/editor-store';
-import { useCallback, useMemo, useRef, type DragEvent } from 'react';
+import { useCallback, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import type { NodeModel } from '@/shared/types';
 import { toast } from '@/shared/components/Toast';
 import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
-import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { nodeRegistry, type NodeDefinition } from '@/editor-core/model/node-registry';
 
 const DATA_TYPE_COLORS: Record<string, string> = {
   Bool: '#e74c3c',
@@ -135,6 +135,12 @@ export function Canvas() {
   const storeAddNode = useEditorStore((s) => s.addNode);
   const reactFlowInstance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    flowPosition: { x: number; y: number };
+  } | null>(null);
+  const [contextSearch, setContextSearch] = useState('');
 
   const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -256,6 +262,46 @@ export function Canvas() {
     [setSelection],
   );
 
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | globalThis.MouseEvent) => {
+      event.preventDefault();
+      if (!wrapperRef.current) return;
+      const bounds = wrapperRef.current.getBoundingClientRect();
+      const flowPosition = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+      });
+      setContextMenu({ x: event.clientX, y: event.clientY, flowPosition });
+      setContextSearch('');
+    },
+    [reactFlowInstance],
+  );
+
+  const contextResults = useMemo(() => {
+    if (!contextMenu || contextSearch.length < 1) return [];
+    const lower = contextSearch.toLowerCase();
+    const terms = lower.split(/\s+/).filter(Boolean);
+    const placeable = nodeRegistry.listPlaceable();
+    const matched: NodeDefinition[] = [];
+    for (const def of placeable) {
+      const text = `${def.displayName ?? ''} ${def.type} ${def.category}`.toLowerCase();
+      if (terms.every((t) => text.includes(t))) {
+        matched.push(def);
+        if (matched.length >= 20) break;
+      }
+    }
+    return matched;
+  }, [contextMenu, contextSearch]);
+
+  const handleContextAdd = useCallback(
+    (type: string) => {
+      if (!contextMenu) return;
+      storeAddNode(type, contextMenu.flowPosition);
+      setContextMenu(null);
+    },
+    [contextMenu, storeAddNode],
+  );
+
   return (
     <div ref={wrapperRef} style={{ flex: 1, height: '100%' }} onDragOver={onDragOver} onDrop={onDrop}>
       <ReactFlow
@@ -266,6 +312,8 @@ export function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
+        onPaneClick={() => setContextMenu(null)}
+        onPaneContextMenu={onPaneContextMenu}
         fitView
         colorMode="dark"
         deleteKeyCode="Delete"
@@ -274,6 +322,89 @@ export function Canvas() {
         <Controls />
         <MiniMap />
       </ReactFlow>
+      {contextMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: '#1e1e2e',
+            border: '1px solid #444',
+            borderRadius: 6,
+            padding: 4,
+            zIndex: 10000,
+            minWidth: 220,
+            maxHeight: 300,
+            overflow: 'auto',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            fontFamily: 'monospace',
+            fontSize: 12,
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            autoFocus
+            type="text"
+            placeholder="Search nodes..."
+            value={contextSearch}
+            onChange={(e) => setContextSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setContextMenu(null);
+              if (e.key === 'Enter' && contextResults.length > 0) {
+                handleContextAdd(contextResults[0].type);
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              background: '#2a2a3a',
+              border: '1px solid #555',
+              borderRadius: 4,
+              color: '#e0e0e0',
+              fontSize: 12,
+              boxSizing: 'border-box',
+              marginBottom: 4,
+            }}
+          />
+          {contextResults.map((def) => (
+            <button
+              key={def.type}
+              onClick={() => handleContextAdd(def.type)}
+              title={def.type}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '5px 8px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 4,
+                color: '#d0d0d0',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 12,
+                fontFamily: 'monospace',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#2a2a3a';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div>{def.displayName ?? def.type}</div>
+              <div style={{ fontSize: 10, color: '#666' }}>{def.category}</div>
+            </button>
+          ))}
+          {contextSearch.length > 0 && contextResults.length === 0 && (
+            <div style={{ padding: 8, color: '#666', textAlign: 'center' }}>No nodes found</div>
+          )}
+          {contextSearch.length === 0 && (
+            <div style={{ padding: 8, color: '#666', textAlign: 'center' }}>
+              Type to search for nodes
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

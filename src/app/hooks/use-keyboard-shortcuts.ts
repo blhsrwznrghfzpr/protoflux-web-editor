@@ -36,6 +36,29 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Save/Export: Ctrl+S
+      if (isCtrl && e.key === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('protoflux-export'));
+        return;
+      }
+
+      // Duplicate: Ctrl+D
+      if (isCtrl && e.key === 'd' && !isInputFocused) {
+        e.preventDefault();
+        const state = useEditorStore.getState();
+        for (const nodeId of state.selection) {
+          const node = state.graph.nodes.find((n) => n.id === nodeId);
+          if (node) {
+            state.addNode(node.type, {
+              x: node.position.x + 40,
+              y: node.position.y + 40,
+            });
+          }
+        }
+        return;
+      }
+
       // Search focus: Ctrl+F → パレットの検索欄にフォーカス
       if (isCtrl && e.key === 'f') {
         e.preventDefault();

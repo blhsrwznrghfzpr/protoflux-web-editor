@@ -2,12 +2,13 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
 import { toast } from '@/shared/components/Toast';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 export function useFileIO() {
   const graph = useEditorStore((s) => s.graph);
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
+  const setDirty = useEditorStore((s) => s.setDirty);
   const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
 
   const handleExport = useCallback(() => {
@@ -19,7 +20,8 @@ export function useFileIO() {
     a.download = `${documentName}.protoflux.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [graph, documentName]);
+    setDirty(false);
+  }, [graph, documentName, setDirty]);
 
   const handleImport = useCallback(
     (file: File) => {
@@ -78,6 +80,12 @@ export function ImportButton() {
 
 export function ExportButton() {
   const { handleExport } = useFileIO();
+
+  useEffect(() => {
+    const handler = () => handleExport();
+    window.addEventListener('protoflux-export', handler);
+    return () => window.removeEventListener('protoflux-export', handler);
+  }, [handleExport]);
 
   return (
     <button onClick={handleExport} style={toolbarButtonStyle}>
