@@ -157,6 +157,11 @@ export interface EdgeModel {
 export interface NodeDefinition {
   type: string;
   category: string;
+  displayName: string;
+  isGeneric: boolean;
+  genericParamNames: string[];
+  isExpanded: boolean;
+  hasGenericField: boolean;
   inputs: Array<{ name: string; dataType: string }>;
   outputs: Array<{ name: string; dataType: string }>;
   defaultParams?: Record<string, unknown>;
@@ -171,7 +176,17 @@ export interface NodeRegistry {
   get(type: string): NodeDefinition | undefined;
   list(): NodeDefinition[];
 }
+
+// ResoniteLink 由来の定義データをそのまま保持するための生データ型
+export interface NodeRegistryDataset {
+  generatedAt: string;
+  resoniteVersion: string;
+  totalCount: number;
+  nodes: NodeDefinition[];
+}
 ```
+
+> `src/data/protoflux-node-defs.json` の実測値（2026-03-10時点）: 全 10,546 ノード、ジェネリックテンプレート 3,321 件、展開済みジェネリック 4,250 件。MVP後に全ノード対応する前提なら、`NodeDefinition` はジェネリック情報とメタ情報を欠かさず保持する。 
 
 ## 5.2 MVPの最小ノードセット（推奨）
 
@@ -184,6 +199,12 @@ export interface NodeRegistry {
 
 - **今やること**: Registry化、UnknownNode保持、migration設計
 - **今やらないこと**: 全ノードのUI詳細固定
+- **追加方針（データ起点）**:
+  - Registry のロード元は `src/data/protoflux-node-defs.json` を一次情報とする
+  - `type` は C# フル型名（例: `[FrooxEngine]FrooxEngine.ProtoFlux.GlobalValue<>[bool]`）で一意管理
+  - Palette 表示は `displayName` と `category` を使い、内部識別は `type` のみを使う
+  - `isGeneric=true` のテンプレートは「直接配置不可」、`isExpanded=true` の具体型のみ配置可能にする（後方互換のため設定で緩和可能）
+  - ノード総数が大きいため、Palette はカテゴリツリー + 検索インデックス + 仮想スクロールを前提にする
 
 > 結論: MVPは最小ノードでよいが、アーキテクチャは拡張前提で実装する。
 
@@ -381,3 +402,26 @@ export interface IResoniteBridge {
 5. Push/Pull失敗時の通知・リトライルール
 
 この5点を先に固定すると、実装中の仕様揺れを最小化できる。
+
+---
+
+## 16. ResoniteLink収集データに基づく見直しポイント
+
+`src/data/protoflux-node-defs.json` の内容を前提にすると、以下は**設計書で明示しておくべき確定事項**。
+
+1. **Node Registry を静的定義からデータ駆動へ変更**  
+   手書きのノード一覧では追従不能な件数のため、JSON dataset を直接ロードし、ビルド時または起動時にインデックス化する。
+
+2. **型文字列の正規化ルールを導入**  
+   `type`（フル型名）、`displayName`（表示名）、`dataType`（ポート型名）は用途を分離し、保存フォーマットでは `type` を canonical key として固定する。
+
+3. **ジェネリック展開戦略の定義を追加**  
+   テンプレート型（`isGeneric=true`）と実体型（`isExpanded=true`）の扱いを分離し、配置可能条件・検索対象・互換モードを仕様化する。
+
+4. **Palette / Search の性能要件を追記**  
+   10k+ ノード前提で、初期描画時に全件レンダリングしない。カテゴリ単位の遅延展開、Fuse.js 等による事前インデックス、仮想リストを必須要件にする。
+
+5. **バージョン固定と差分更新ポリシーを追加**  
+   dataset に含まれる `resoniteVersion` / `generatedAt` を UI と export metadata に保持し、将来の型名変更時は migration で吸収する。
+
+> 結論: 「見直しは必要」。ただし大規模な方針変更ではなく、既存設計の `Node Registry` / `型システム` / `性能要件` を**データ駆動化して明文化する補強**が主眼となる。
