@@ -6,6 +6,7 @@ import { Toolbar } from '@/features/toolbar/Toolbar';
 import { StatusBar } from '@/features/status-bar/StatusBar';
 import { ToastContainer } from '@/shared/components/Toast';
 import { ShortcutHelp } from '@/features/help/ShortcutHelp';
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useBeforeUnload } from './hooks/use-before-unload';
 
@@ -38,10 +39,12 @@ function EditorLayout() {
 
 export function App() {
   return (
-    <ReactFlowProvider>
-      <EditorLayout />
-      <ToastContainer />
-      <ShortcutHelp />
-    </ReactFlowProvider>
+    <ErrorBoundary>
+      <ReactFlowProvider>
+        <EditorLayout />
+        <ToastContainer />
+        <ShortcutHelp />
+      </ReactFlowProvider>
+    </ErrorBoundary>
   );
 }

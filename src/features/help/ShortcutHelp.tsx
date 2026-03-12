@@ -11,6 +11,8 @@ const SHORTCUTS = [
   { keys: 'Ctrl+F', action: 'Focus palette search' },
   { keys: 'Delete / Backspace', action: 'Delete selected nodes' },
   { keys: 'Escape', action: 'Deselect all' },
+  { keys: 'Shift+1', action: 'Zoom to fit all' },
+  { keys: 'Shift+2', action: 'Zoom to selection' },
   { keys: 'Right-click canvas', action: 'Quick node search' },
   { keys: '?', action: 'Toggle this help' },
 ];

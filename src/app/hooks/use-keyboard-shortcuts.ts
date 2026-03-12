@@ -98,6 +98,20 @@ export function useKeyboardShortcuts() {
         for (const nodeId of selection) {
           deleteNode(nodeId);
         }
+        return;
+      }
+
+      // Zoom to fit all: Shift+1
+      if (e.shiftKey && e.code === 'Digit1' && !isInputFocused) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('protoflux-fit-view'));
+        return;
+      }
+
+      // Zoom to selection: Shift+2
+      if (e.shiftKey && e.code === 'Digit2' && !isInputFocused) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('protoflux-fit-selection'));
       }
     };
 

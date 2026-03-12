@@ -29,6 +29,7 @@ export const ProtofluxDocumentSchema = z.object({
     name: z.string(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    editorVersion: z.string().optional(),
     resoniteVersion: z.string().optional(),
     datasetGeneratedAt: z.string().optional(),
   }),

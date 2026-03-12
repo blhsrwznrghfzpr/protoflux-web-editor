@@ -201,6 +201,24 @@ export function Canvas() {
     },
     [storeSetViewport],
   );
+
+  // Zoom-to-fit and zoom-to-selection events
+  useEffect(() => {
+    const handleFitView = () => reactFlowInstance.fitView({ duration: 300 });
+    const handleFitSelection = () => {
+      const sel = useEditorStore.getState().selection;
+      if (sel.length > 0) {
+        reactFlowInstance.fitView({ nodes: sel.map((id) => ({ id })), duration: 300, padding: 0.3 });
+      }
+    };
+    window.addEventListener('protoflux-fit-view', handleFitView);
+    window.addEventListener('protoflux-fit-selection', handleFitSelection);
+    return () => {
+      window.removeEventListener('protoflux-fit-view', handleFitView);
+      window.removeEventListener('protoflux-fit-selection', handleFitSelection);
+    };
+  }, [reactFlowInstance]);
+
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;

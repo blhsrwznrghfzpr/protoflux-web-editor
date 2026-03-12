@@ -148,9 +148,29 @@ export function Palette() {
             boxSizing: 'border-box',
           }}
         />
-        <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
-          {totalCount.toLocaleString()} nodes
-          {isSearching ? ' found' : ' available'}
+        <div style={{ fontSize: 10, color: '#666', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>
+            {totalCount.toLocaleString()} nodes
+            {isSearching ? ' found' : ' available'}
+          </span>
+          {!isSearching && (
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              <button
+                onClick={() => setExpandedCategories(new Set(grouped.map(([cat]) => cat)))}
+                style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                title="Expand all"
+              >
+                [+]
+              </button>
+              <button
+                onClick={() => setExpandedCategories(new Set())}
+                style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                title="Collapse all"
+              >
+                [-]
+              </button>
+            </span>
+          )}
         </div>
       </div>
       <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
