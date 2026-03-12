@@ -30,6 +30,7 @@ export function Inspector() {
   const updateParam = useEditorStore((s) => s.updateParam);
   const deleteNode = useEditorStore((s) => s.deleteNode);
   const deleteNodes = useEditorStore((s) => s.deleteNodes);
+  const deleteEdge = useEditorStore((s) => s.deleteEdge);
   const copySelected = useEditorStore((s) => s.copySelected);
   const duplicateSelected = useEditorStore((s) => s.duplicateSelected);
 
@@ -231,11 +232,26 @@ export function Inspector() {
             const otherLabel = otherNode?.displayName ?? otherNode?.type ?? otherNodeId;
             const portId = isOutput ? edge.from.portId : edge.to.portId;
             return (
-              <div key={edge.id} style={{ marginBottom: 2, fontSize: 11 }}>
+              <div key={edge.id} style={{ marginBottom: 2, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ color: isOutput ? '#2ecc71' : '#3498db' }}>
                   {isOutput ? '\u2192' : '\u2190'}
-                </span>{' '}
-                {portId} \u2014 {otherLabel}
+                </span>
+                <span style={{ flex: 1 }}>{portId} \u2014 {otherLabel}</span>
+                <button
+                  onClick={() => deleteEdge(edge.id)}
+                  title="Disconnect"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#666',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    padding: '0 2px',
+                    lineHeight: 1,
+                  }}
+                >
+                  \u00D7
+                </button>
               </div>
             );
           })}

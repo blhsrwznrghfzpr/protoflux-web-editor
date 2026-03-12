@@ -5,6 +5,7 @@ import { Inspector } from '@/features/inspector/Inspector';
 import { Toolbar } from '@/features/toolbar/Toolbar';
 import { StatusBar } from '@/features/status-bar/StatusBar';
 import { ToastContainer } from '@/shared/components/Toast';
+import { ShortcutHelp } from '@/features/help/ShortcutHelp';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useBeforeUnload } from './hooks/use-before-unload';
 
@@ -40,6 +41,7 @@ export function App() {
     <ReactFlowProvider>
       <EditorLayout />
       <ToastContainer />
+      <ShortcutHelp />
     </ReactFlowProvider>
   );
 }

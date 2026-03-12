@@ -18,7 +18,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useEditorStore } from '@/app/providers/editor-store';
-import { useCallback, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import type { NodeModel } from '@/shared/types';
 import { toast } from '@/shared/components/Toast';
 import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
@@ -28,7 +28,21 @@ const DATA_TYPE_COLORS: Record<string, string> = {
   bool: '#e74c3c',
   int: '#3498db',
   float: '#2ecc71',
+  float2: '#27ae60',
+  float3: '#16a085',
+  float4: '#1abc9c',
+  floatQ: '#0e6655',
   string: '#f39c12',
+  Uri: '#e67e22',
+  color: '#9b59b6',
+  colorX: '#8e44ad',
+  User: '#e91e63',
+  Slot: '#00bcd4',
+  IValue: '#5dade2',
+  IField: '#45b7d1',
+  Impulse: '#ff6b6b',
+  Operation: '#a29bfe',
+  dummy: '#666',
 };
 
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {
@@ -128,6 +142,7 @@ const nodeTypes = { protoflux: ProtoFluxNode };
 export function Canvas() {
   const graph = useEditorStore((s) => s.graph);
   const setSelection = useEditorStore((s) => s.setSelection);
+  const storeSetViewport = useEditorStore((s) => s.setViewport);
   const storeConnectEdge = useEditorStore((s) => s.connectEdge);
   const storeMoveNode = useEditorStore((s) => s.moveNode);
   const storeDeleteNode = useEditorStore((s) => s.deleteNode);
@@ -135,6 +150,27 @@ export function Canvas() {
   const storeAddNode = useEditorStore((s) => s.addNode);
   const reactFlowInstance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const viewportRestoredRef = useRef(false);
+
+  // Restore saved viewport on initial load
+  useEffect(() => {
+    if (viewportRestoredRef.current) return;
+    viewportRestoredRef.current = true;
+    const saved = useEditorStore.getState().viewport;
+    if (saved && (saved.x !== 0 || saved.y !== 0 || saved.zoom !== 1)) {
+      // Defer to let React Flow initialize
+      requestAnimationFrame(() => {
+        reactFlowInstance.setViewport({ x: saved.x, y: saved.y, zoom: saved.zoom });
+      });
+    }
+  }, [reactFlowInstance]);
+
+  const onViewportChange = useCallback(
+    (viewport: { x: number; y: number; zoom: number }) => {
+      storeSetViewport(viewport);
+    },
+    [storeSetViewport],
+  );
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -188,8 +224,10 @@ export function Canvas() {
         if (outputPort && inputPort) {
           const compat = checkTypeCompatibility(outputPort.dataType, inputPort.dataType);
           if (compat.implicit) {
-            stroke = '#f39c12'; // 暗黙変換はオレンジ
+            stroke = '#f39c12';
             label = `${outputPort.dataType} \u2192 ${inputPort.dataType}`;
+          } else {
+            stroke = DATA_TYPE_COLORS[outputPort.dataType] ?? '#7c3aed';
           }
         }
 
@@ -309,6 +347,7 @@ export function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onSelectionChange={onSelectionChange}
+        onViewportChange={onViewportChange}
         onPaneClick={() => setContextMenu(null)}
         onPaneContextMenu={onPaneContextMenu}
         fitView

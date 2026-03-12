@@ -8,6 +8,8 @@ const STATUS_TYPE_COLORS: Record<string, string> = {
 
 export function StatusBar() {
   const graph = useEditorStore((s) => s.graph);
+  const selection = useEditorStore((s) => s.selection);
+  const dirty = useEditorStore((s) => s.dirty);
   const bridgeStatus = useEditorStore((s) => s.bridgeStatus);
   const statusMessage = useEditorStore((s) => s.statusMessage);
   const clearStatusMessage = useEditorStore((s) => s.clearStatusMessage);
@@ -45,6 +47,16 @@ export function StatusBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <span>Nodes: {graph.nodes.length}</span>
         <span>Edges: {graph.edges.length}</span>
+        {selection.length > 0 && (
+          <span style={{ color: '#7c3aed' }}>
+            Selected: {selection.length}
+          </span>
+        )}
+        {dirty && (
+          <span style={{ color: '#f39c12' }} title="Unsaved changes">
+            Modified
+          </span>
+        )}
         {validationErrors.length > 0 && (
           <span
             style={{ color: '#e74c3c' }}
