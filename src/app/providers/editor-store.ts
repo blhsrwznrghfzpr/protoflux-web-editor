@@ -7,6 +7,7 @@ import { deleteNode, deleteEdge } from '@/editor-core/commands/delete-node';
 import { moveNode } from '@/editor-core/commands/move-node';
 import { updateParam } from '@/editor-core/commands/update-param';
 import { duplicateNodes } from '@/editor-core/commands/duplicate-node';
+import { copyNodes, pasteNodes, type ClipboardData } from '@/editor-core/commands/copy-paste';
 import { validateGraph, type ValidationError } from '@/editor-core/services/validator';
 import type { BridgeStatus, IResoniteBridge } from '@/bridge/types';
 import { NoopBridge } from '@/bridge/noop-bridge';
@@ -20,6 +21,7 @@ export interface StatusMessage {
 interface EditorState {
   graph: GraphModel;
   selection: NodeId[];
+  clipboard: ClipboardData | null;
   viewport: { x: number; y: number; zoom: number };
   history: HistoryState;
   dirty: boolean;
@@ -33,15 +35,19 @@ interface EditorState {
   addNode: (type: string, position: { x: number; y: number }) => void;
   connectEdge: (fromNodeId: string, fromPortId: string, toNodeId: string, toPortId: string) => string | null;
   deleteNode: (nodeId: string) => void;
+  deleteNodes: (nodeIds: string[]) => void;
   deleteEdge: (edgeId: string) => void;
   moveNode: (nodeId: string, position: { x: number; y: number }) => void;
   updateParam: (nodeId: string, key: string, value: unknown) => void;
   duplicateSelected: () => void;
+  copySelected: () => void;
+  pasteClipboard: () => void;
   setSelection: (nodeIds: string[]) => void;
   setViewport: (viewport: { x: number; y: number; zoom: number }) => void;
   undo: () => void;
   redo: () => void;
   loadGraph: (graph: GraphModel, name?: string) => void;
+  newGraph: () => void;
   setDocumentName: (name: string) => void;
   setDirty: (dirty: boolean) => void;
   setBridge: (bridge: IResoniteBridge) => void;
@@ -117,6 +123,7 @@ const initialViewport = savedData?.viewport ?? { x: 0, y: 0, zoom: 1 };
 export const useEditorStore = create<EditorState>((set, get) => ({
   graph: initialGraph,
   selection: [],
+  clipboard: null,
   viewport: initialViewport,
   history: { undoStack: [], redoStack: [] },
   dirty: false,
@@ -159,6 +166,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       graph: newGraph,
       selection: state.selection.filter((id) => id !== nodeId),
+      history: pushHistory(state.history, state.graph),
+      dirty: true,
+    });
+    scheduleAutosave();
+    scheduleValidation();
+  },
+
+  deleteNodes: (nodeIds) => {
+    const state = get();
+    let current = state.graph;
+    for (const nodeId of nodeIds) {
+      current = deleteNode(current, nodeId);
+    }
+    set({
+      graph: current,
+      selection: [],
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
@@ -213,6 +236,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     scheduleAutosave();
   },
 
+  copySelected: () => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const data = copyNodes(state.graph, state.selection);
+    set({ clipboard: data });
+  },
+
+  pasteClipboard: () => {
+    const state = get();
+    if (!state.clipboard || state.clipboard.nodes.length === 0) return;
+    const result = pasteNodes(state.graph, state.clipboard);
+    set({
+      graph: result.graph,
+      selection: result.newNodeIds,
+      history: pushHistory(state.history, state.graph),
+      dirty: true,
+    });
+    scheduleAutosave();
+    scheduleValidation();
+  },
+
   setSelection: (nodeIds) => set({ selection: nodeIds }),
 
   setViewport: (viewport) => {
@@ -246,6 +290,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: false,
       documentName: name ?? 'Untitled',
       validationErrors: validateGraph(graph),
+    });
+    scheduleAutosave();
+  },
+
+  newGraph: () => {
+    const emptyGraph: GraphModel = { nodes: [], edges: [] };
+    set({
+      graph: emptyGraph,
+      selection: [],
+      history: { undoStack: [], redoStack: [] },
+      dirty: false,
+      documentName: 'Untitled',
+      validationErrors: [],
     });
     scheduleAutosave();
   },

@@ -11,6 +11,10 @@ export class TsrlBridge implements IResoniteBridge {
   private status: BridgeStatus = 'disconnected';
   private listeners = new Set<(status: BridgeStatus) => void>();
   private url: string;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private intentionalDisconnect = false;
 
   constructor(url = 'ws://localhost:11404') {
     this.url = url;
@@ -25,15 +29,39 @@ export class TsrlBridge implements IResoniteBridge {
     this.listeners.forEach((cb) => cb(status));
   }
 
+  private scheduleReconnect() {
+    if (this.intentionalDisconnect) return;
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.setStatus('error');
+      return;
+    }
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(async () => {
+      try {
+        await this.connect();
+      } catch {
+        // connect() already handles error status and will re-trigger scheduleReconnect via close handler
+      }
+    }, delay);
+  }
+
   async connect(): Promise<void> {
     if (this.status === 'connected' || this.status === 'connecting') return;
+    this.intentionalDisconnect = false;
     this.setStatus('connecting');
     try {
       const link = await ResoniteLink.connect(this.url);
       this.link = link;
+      this.reconnectAttempts = 0;
       link.socket.addEventListener('close', () => {
         this.link = null;
-        this.setStatus('disconnected');
+        if (this.intentionalDisconnect) {
+          this.setStatus('disconnected');
+        } else {
+          this.setStatus('disconnected');
+          this.scheduleReconnect();
+        }
       });
       link.socket.addEventListener('error', () => {
         this.setStatus('error');
@@ -41,11 +69,18 @@ export class TsrlBridge implements IResoniteBridge {
       this.setStatus('connected');
     } catch {
       this.setStatus('error');
+      this.scheduleReconnect();
       throw new Error('ResoniteLinkへの接続に失敗しました');
     }
   }
 
   async disconnect(): Promise<void> {
+    this.intentionalDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
     if (this.link) {
       this.link.socket.close();
       this.link = null;

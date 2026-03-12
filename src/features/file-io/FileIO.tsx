@@ -2,6 +2,7 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
 import { toast } from '@/shared/components/Toast';
+import { confirmUnsavedChanges } from '@/shared/utils';
 import { useCallback, useEffect, useRef } from 'react';
 
 export function useFileIO() {
@@ -53,7 +54,14 @@ export function useFileIO() {
 
 export function ImportButton() {
   const { handleImport } = useFileIO();
+  const dirty = useEditorStore((s) => s.dirty);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = useCallback(() => {
+    if (confirmUnsavedChanges(dirty)) {
+      inputRef.current?.click();
+    }
+  }, [dirty]);
 
   return (
     <>
@@ -69,7 +77,7 @@ export function ImportButton() {
         }}
       />
       <button
-        onClick={() => inputRef.current?.click()}
+        onClick={handleClick}
         style={toolbarButtonStyle}
       >
         Import

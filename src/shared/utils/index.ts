@@ -24,3 +24,12 @@ export async function withRetry<T>(
   }
   throw lastError;
 }
+
+/**
+ * 未保存の変更がある場合にユーザーに確認ダイアログを表示する。
+ * @returns true なら操作を続行してよい
+ */
+export function confirmUnsavedChanges(dirty: boolean): boolean {
+  if (!dirty) return true;
+  return window.confirm('You have unsaved changes. Are you sure you want to continue? Changes will be lost.');
+}

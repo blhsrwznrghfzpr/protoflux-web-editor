@@ -4,6 +4,7 @@ import { connectEdge } from '../commands/connect-edge';
 import { deleteNode } from '../commands/delete-node';
 import { moveNode } from '../commands/move-node';
 import { updateParam } from '../commands/update-param';
+import { copyNodes, pasteNodes } from '../commands/copy-paste';
 import { nodeRegistry } from '../model/node-registry';
 import type { GraphModel } from '@/shared/types';
 
@@ -130,5 +131,81 @@ describe('updateParam', () => {
     if ('error' in r) throw new Error(r.error);
     const updated = updateParam(r.graph, r.node.id, 'value', 42);
     expect(updated.nodes[0].params?.value).toBe(42);
+  });
+});
+
+describe('copyNodes / pasteNodes', () => {
+  it('copies and pastes nodes with new IDs', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const clipboard = copyNodes(graph, [r1.node.id]);
+    expect(clipboard.nodes).toHaveLength(1);
+
+    const result = pasteNodes(graph, clipboard);
+    expect(result.graph.nodes).toHaveLength(2);
+    expect(result.newNodeIds).toHaveLength(1);
+    // New node should have a different ID
+    expect(result.newNodeIds[0]).not.toBe(r1.node.id);
+    // Position should be offset
+    const pasted = result.graph.nodes.find((n) => n.id === result.newNodeIds[0])!;
+    expect(pasted.position.x).toBe(60);
+    expect(pasted.position.y).toBe(60);
+  });
+
+  it('preserves edges between copied nodes', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
+    if ('error' in r2) throw new Error(r2.error);
+    graph = r2.graph;
+
+    const edgeResult = connectEdge(graph, r1.node.id, r1.node.outputs[0].id, r2.node.id, r2.node.inputs[0].id);
+    if ('error' in edgeResult) throw new Error(edgeResult.error);
+    graph = edgeResult.graph;
+
+    const clipboard = copyNodes(graph, [r1.node.id, r2.node.id]);
+    expect(clipboard.nodes).toHaveLength(2);
+    expect(clipboard.edges).toHaveLength(1);
+
+    const result = pasteNodes(graph, clipboard);
+    expect(result.graph.nodes).toHaveLength(4);
+    expect(result.graph.edges).toHaveLength(2); // original + pasted
+    // Pasted edge should reference new node IDs
+    const pastedEdge = result.graph.edges.find((e) => result.newNodeIds.includes(e.from.nodeId));
+    expect(pastedEdge).toBeDefined();
+    expect(result.newNodeIds).toContain(pastedEdge!.to.nodeId);
+  });
+
+  it('ignores edges to nodes outside selection', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
+    if ('error' in r2) throw new Error(r2.error);
+    graph = r2.graph;
+
+    const edgeResult = connectEdge(graph, r1.node.id, r1.node.outputs[0].id, r2.node.id, r2.node.inputs[0].id);
+    if ('error' in edgeResult) throw new Error(edgeResult.error);
+    graph = edgeResult.graph;
+
+    // Only copy one node — edge should not be included
+    const clipboard = copyNodes(graph, [r1.node.id]);
+    expect(clipboard.nodes).toHaveLength(1);
+    expect(clipboard.edges).toHaveLength(0);
+  });
+
+  it('returns unchanged graph for empty clipboard', () => {
+    const clipboard = { nodes: [], edges: [] };
+    const result = pasteNodes(emptyGraph, clipboard);
+    expect(result.graph).toBe(emptyGraph);
+    expect(result.newNodeIds).toHaveLength(0);
   });
 });

@@ -43,6 +43,20 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Copy: Ctrl+C
+      if (isCtrl && e.key === 'c' && !isInputFocused) {
+        e.preventDefault();
+        useEditorStore.getState().copySelected();
+        return;
+      }
+
+      // Paste: Ctrl+V
+      if (isCtrl && e.key === 'v' && !isInputFocused) {
+        e.preventDefault();
+        useEditorStore.getState().pasteClipboard();
+        return;
+      }
+
       // Duplicate: Ctrl+D
       if (isCtrl && e.key === 'd' && !isInputFocused) {
         e.preventDefault();

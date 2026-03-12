@@ -2,6 +2,7 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { ImportButton, ExportButton } from '@/features/file-io/FileIO';
 import { BridgePanel } from '@/features/bridge-panel/BridgePanel';
 import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { confirmUnsavedChanges } from '@/shared/utils';
 import { useMemo, useState, useRef, useCallback, type KeyboardEvent } from 'react';
 
 export function Toolbar() {
@@ -10,6 +11,7 @@ export function Toolbar() {
   const dirty = useEditorStore((s) => s.dirty);
   const documentName = useEditorStore((s) => s.documentName);
   const setDocumentName = useEditorStore((s) => s.setDocumentName);
+  const newGraph = useEditorStore((s) => s.newGraph);
   const undoAvailable = useEditorStore((s) => s.history.undoStack.length > 0);
   const redoAvailable = useEditorStore((s) => s.history.redoStack.length > 0);
   const datasetMeta = useMemo(() => nodeRegistry.getDatasetMeta(), []);
@@ -26,6 +28,12 @@ export function Toolbar() {
     if (e.key === 'Enter') commitName();
     if (e.key === 'Escape') setEditingName(false);
   }, [commitName]);
+
+  const handleNew = useCallback(() => {
+    if (confirmUnsavedChanges(dirty)) {
+      newGraph();
+    }
+  }, [dirty, newGraph]);
 
   return (
     <div
@@ -91,6 +99,9 @@ export function Toolbar() {
           Redo
         </button>
         <div style={{ width: 1, height: 20, background: '#444' }} />
+        <button onClick={handleNew} style={btnStyle(true)}>
+          New
+        </button>
         <ImportButton />
         <ExportButton />
         <div style={{ width: 1, height: 20, background: '#444' }} />
