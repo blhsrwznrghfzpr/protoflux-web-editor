@@ -26,6 +26,16 @@ export function useFileIO() {
 
   const handleImport = useCallback(
     (file: File) => {
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`, 'error');
+        return;
+      }
+      if (file.size === 0) {
+        toast('File is empty', 'error');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -43,6 +53,9 @@ export function useFileIO() {
           toast(msg, 'error');
           setStatusMessage(msg, 'error');
         }
+      };
+      reader.onerror = () => {
+        toast('Failed to read file', 'error');
       };
       reader.readAsText(file);
     },
@@ -79,6 +92,7 @@ export function ImportButton() {
       <button
         onClick={handleClick}
         style={toolbarButtonStyle}
+        aria-label="Import graph file"
       >
         Import
       </button>
@@ -96,7 +110,7 @@ export function ExportButton() {
   }, [handleExport]);
 
   return (
-    <button onClick={handleExport} style={toolbarButtonStyle}>
+    <button onClick={handleExport} style={toolbarButtonStyle} aria-label="Export graph (Ctrl+S)">
       Export
     </button>
   );

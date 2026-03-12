@@ -32,6 +32,9 @@ export function StatusBar() {
 
   return (
     <div
+      role="status"
+      aria-label="Editor status"
+      aria-live="polite"
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -36,7 +36,9 @@ export function Toolbar() {
   }, [dirty, newGraph]);
 
   return (
-    <div
+    <nav
+      role="toolbar"
+      aria-label="Editor toolbar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -92,14 +94,14 @@ export function Toolbar() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button onClick={undo} disabled={!undoAvailable} style={btnStyle(undoAvailable)}>
+        <button onClick={undo} disabled={!undoAvailable} style={btnStyle(undoAvailable)} aria-label="Undo (Ctrl+Z)">
           Undo
         </button>
-        <button onClick={redo} disabled={!redoAvailable} style={btnStyle(redoAvailable)}>
+        <button onClick={redo} disabled={!redoAvailable} style={btnStyle(redoAvailable)} aria-label="Redo (Ctrl+Shift+Z)">
           Redo
         </button>
-        <div style={{ width: 1, height: 20, background: '#444' }} />
-        <button onClick={handleNew} style={btnStyle(true)}>
+        <div style={{ width: 1, height: 20, background: '#444' }} aria-hidden />
+        <button onClick={handleNew} style={btnStyle(true)} aria-label="New graph">
           New
         </button>
         <ImportButton />
@@ -107,7 +109,7 @@ export function Toolbar() {
         <div style={{ width: 1, height: 20, background: '#444' }} />
         <BridgePanel />
       </div>
-    </div>
+    </nav>
   );
 }
 

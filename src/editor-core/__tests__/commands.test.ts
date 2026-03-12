@@ -5,6 +5,7 @@ import { deleteNode } from '../commands/delete-node';
 import { moveNode } from '../commands/move-node';
 import { updateParam } from '../commands/update-param';
 import { copyNodes, pasteNodes } from '../commands/copy-paste';
+import { duplicateNodes } from '../commands/duplicate-node';
 import { nodeRegistry } from '../model/node-registry';
 import type { GraphModel } from '@/shared/types';
 
@@ -237,5 +238,58 @@ describe('copyNodes / pasteNodes', () => {
     const pasted3 = graph.nodes.find((n) => n.id === paste3.newNodeIds[0])!;
     expect(pasted3.position.x).toBe(180);
     expect(pasted3.position.y).toBe(180);
+  });
+});
+
+describe('duplicateNodes', () => {
+  it('preserves inter-node edges when duplicating multiple nodes', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
+    if ('error' in r2) throw new Error(r2.error);
+    graph = r2.graph;
+
+    const edgeResult = connectEdge(graph, r1.node.id, r1.node.outputs[0].id, r2.node.id, r2.node.inputs[0].id);
+    if ('error' in edgeResult) throw new Error(edgeResult.error);
+    graph = edgeResult.graph;
+
+    expect(graph.edges).toHaveLength(1);
+
+    const result = duplicateNodes(graph, [r1.node.id, r2.node.id]);
+    expect(result.newNodes).toHaveLength(2);
+    expect(result.graph.nodes).toHaveLength(4);
+    // Should have original edge + duplicated edge
+    expect(result.graph.edges).toHaveLength(2);
+
+    // Verify duplicated edge connects new nodes
+    const newNodeIds = new Set(result.newNodes.map((n) => n.id));
+    const dupEdge = result.graph.edges.find(
+      (e) => newNodeIds.has(e.from.nodeId) && newNodeIds.has(e.to.nodeId),
+    );
+    expect(dupEdge).toBeDefined();
+  });
+
+  it('does not duplicate edges to nodes outside selection', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const r2 = addNode(graph, 'Test/Add', { x: 200, y: 0 });
+    if ('error' in r2) throw new Error(r2.error);
+    graph = r2.graph;
+
+    const edgeResult = connectEdge(graph, r1.node.id, r1.node.outputs[0].id, r2.node.id, r2.node.inputs[0].id);
+    if ('error' in edgeResult) throw new Error(edgeResult.error);
+    graph = edgeResult.graph;
+
+    // Only duplicate one node
+    const result = duplicateNodes(graph, [r1.node.id]);
+    expect(result.newNodes).toHaveLength(1);
+    // No new edges - external connection not duplicated
+    expect(result.graph.edges).toHaveLength(1);
   });
 });

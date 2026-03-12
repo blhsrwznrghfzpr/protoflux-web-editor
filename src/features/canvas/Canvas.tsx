@@ -207,6 +207,7 @@ export function Canvas() {
     flowPosition: { x: number; y: number };
   } | null>(null);
   const [contextSearch, setContextSearch] = useState('');
+  const [contextHighlight, setContextHighlight] = useState(0);
 
   const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -423,11 +424,19 @@ export function Canvas() {
             type="text"
             placeholder="Search nodes..."
             value={contextSearch}
-            onChange={(e) => setContextSearch(e.target.value)}
+            onChange={(e) => { setContextSearch(e.target.value); setContextHighlight(0); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setContextMenu(null);
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setContextHighlight((prev) => Math.min(prev + 1, contextResults.length - 1));
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setContextHighlight((prev) => Math.max(prev - 1, 0));
+              }
               if (e.key === 'Enter' && contextResults.length > 0) {
-                handleContextAdd(contextResults[0].type);
+                handleContextAdd(contextResults[contextHighlight]?.type ?? contextResults[0].type);
               }
             }}
             style={{
@@ -442,16 +451,17 @@ export function Canvas() {
               marginBottom: 4,
             }}
           />
-          {contextResults.map((def) => (
+          {contextResults.map((def, idx) => (
             <button
               key={def.type}
               onClick={() => handleContextAdd(def.type)}
+              onMouseEnter={() => setContextHighlight(idx)}
               title={def.type}
               style={{
                 display: 'block',
                 width: '100%',
                 padding: '5px 8px',
-                background: 'transparent',
+                background: idx === contextHighlight ? '#2a2a3a' : 'transparent',
                 border: 'none',
                 borderRadius: 4,
                 color: '#d0d0d0',
@@ -459,12 +469,6 @@ export function Canvas() {
                 textAlign: 'left',
                 fontSize: 12,
                 fontFamily: 'monospace',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#2a2a3a';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
               }}
             >
               <div>{def.displayName ?? def.type}</div>
