@@ -45,16 +45,46 @@ const DATA_TYPE_COLORS: Record<string, string> = {
   dummy: '#666',
 };
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Math: '#3498db',
+  Logic: '#e74c3c',
+  Flow: '#9b59b6',
+  Variables: '#2ecc71',
+  Data: '#f39c12',
+  Operators: '#1abc9c',
+  Actions: '#e91e63',
+  Input: '#00bcd4',
+  Network: '#ff6b6b',
+  Users: '#e91e63',
+  Physics: '#8e44ad',
+  Rendering: '#16a085',
+};
+
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {
   const model = data.model;
   const label = model.displayName ?? model.type;
   const isUnknown = !nodeRegistry.get(model.type);
+  const hasError = useEditorStore((s) =>
+    s.validationErrors.some(
+      (e) => e.edgeId && s.graph.edges.some(
+        (edge) => edge.id === e.edgeId && (edge.from.nodeId === model.id || edge.to.nodeId === model.id),
+      ),
+    ),
+  );
+
+  const borderColor = selected
+    ? '#7c3aed'
+    : hasError
+      ? '#e74c3c'
+      : isUnknown
+        ? '#e67e22'
+        : '#444';
 
   return (
     <div
       style={{
         background: selected ? '#2a2a3a' : '#1e1e2e',
-        border: `2px solid ${selected ? '#7c3aed' : isUnknown ? '#e67e22' : '#444'}`,
+        border: `2px solid ${borderColor}`,
         borderRadius: 8,
         padding: 0,
         minWidth: 160,
@@ -237,7 +267,8 @@ export function Canvas() {
           sourceHandle: e.from.portId,
           target: e.to.nodeId,
           targetHandle: e.to.portId,
-          style: { stroke },
+          animated: label !== undefined,
+          style: { stroke, strokeWidth: 2 },
           label,
           labelStyle: label ? { fill: '#f39c12', fontSize: 10 } : undefined,
           labelBgStyle: label ? { fill: '#1e1e2e', fillOpacity: 0.8 } : undefined,
@@ -356,7 +387,16 @@ export function Canvas() {
       >
         <Background />
         <Controls />
-        <MiniMap />
+        <MiniMap
+          nodeColor={(node) => {
+            const model = node.data?.model as NodeModel | undefined;
+            if (!model) return '#444';
+            const def = nodeRegistry.get(model.type);
+            if (!def) return '#e67e22';
+            return CATEGORY_COLORS[def.category] ?? '#555';
+          }}
+          maskColor="rgba(0,0,0,0.6)"
+        />
       </ReactFlow>
       {contextMenu && (
         <div
