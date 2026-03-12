@@ -4,7 +4,7 @@ import { pushHistory, undo, redo, type HistoryState } from '@/editor-core/servic
 import { addNode } from '@/editor-core/commands/add-node';
 import { connectEdge } from '@/editor-core/commands/connect-edge';
 import { deleteNode, deleteEdge } from '@/editor-core/commands/delete-node';
-import { moveNode } from '@/editor-core/commands/move-node';
+import { moveNode, moveNodes } from '@/editor-core/commands/move-node';
 import { updateParam } from '@/editor-core/commands/update-param';
 import { duplicateNodes } from '@/editor-core/commands/duplicate-node';
 import { copyNodes, pasteNodes, type ClipboardData } from '@/editor-core/commands/copy-paste';
@@ -40,6 +40,7 @@ interface EditorState {
   deleteNodes: (nodeIds: string[]) => void;
   deleteEdge: (edgeId: string) => void;
   moveNode: (nodeId: string, position: { x: number; y: number }) => void;
+  moveNodes: (moves: Array<{ nodeId: string; position: { x: number; y: number } }>) => void;
   updateParam: (nodeId: string, key: string, value: unknown) => void;
   duplicateSelected: () => void;
   copySelected: () => void;
@@ -209,6 +210,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   moveNode: (nodeId, position) => {
     const state = get();
     const newGraph = moveNode(state.graph, nodeId, position);
+    set({
+      graph: newGraph,
+      history: pushHistory(state.history, state.graph),
+      dirty: true,
+    });
+    scheduleAutosave();
+  },
+
+  moveNodes: (moves) => {
+    if (moves.length === 0) return;
+    const state = get();
+    const newGraph = moveNodes(state.graph, moves);
     set({
       graph: newGraph,
       history: pushHistory(state.history, state.graph),

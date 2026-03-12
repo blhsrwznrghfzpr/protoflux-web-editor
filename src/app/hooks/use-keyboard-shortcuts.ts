@@ -5,6 +5,7 @@ export function useKeyboardShortcuts() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const deleteNode = useEditorStore((s) => s.deleteNode);
+  const deleteNodes = useEditorStore((s) => s.deleteNodes);
   const setSelection = useEditorStore((s) => s.setSelection);
   const selection = useEditorStore((s) => s.selection);
   const graph = useEditorStore((s) => s.graph);
@@ -92,11 +93,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Delete / Backspace: 選択ノード削除
+      // Delete / Backspace: 選択ノード削除（batch: 1回のhistory entry）
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (isInputFocused) return;
-        for (const nodeId of selection) {
-          deleteNode(nodeId);
+        if (selection.length > 1) {
+          deleteNodes(selection);
+        } else if (selection.length === 1) {
+          deleteNode(selection[0]);
         }
         return;
       }
@@ -117,5 +120,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, deleteNode, setSelection, selection, graph.nodes]);
+  }, [undo, redo, deleteNode, deleteNodes, setSelection, selection, graph.nodes]);
 }

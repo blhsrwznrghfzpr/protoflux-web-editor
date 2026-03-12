@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/app/providers/editor-store';
 import { useMemo } from 'react';
 import type { EdgeModel } from '@/shared/types';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
 
 const panelStyle: React.CSSProperties = {
   width: 240,
@@ -155,6 +156,20 @@ export function Inspector() {
           {selectedNode.type}
         </div>
       )}
+
+      {(() => {
+        const def = nodeRegistry.get(selectedNode.type);
+        return def ? (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#999' }}>
+            {def.category}
+            {def.isGeneric && <span style={{ color: '#f39c12', marginLeft: 4 }}>(generic)</span>}
+          </div>
+        ) : (
+          <div style={{ marginBottom: 8, fontSize: 11, color: '#e67e22' }}>
+            Unknown node type
+          </div>
+        );
+      })()}
 
       <div style={{ marginBottom: 12, fontSize: 11, color: '#888' }}>
         ID: {selectedNode.id}

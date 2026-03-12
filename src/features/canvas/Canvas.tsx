@@ -23,6 +23,8 @@ import type { NodeModel } from '@/shared/types';
 import { toast } from '@/shared/components/Toast';
 import { checkTypeCompatibility } from '@/editor-core/services/type-compatibility';
 import { nodeRegistry, type NodeDefinition } from '@/editor-core/model/node-registry';
+import { deserialize } from '@/serialization/deserialize';
+import { confirmUnsavedChanges } from '@/shared/utils';
 
 const DATA_TYPE_COLORS: Record<string, string> = {
   bool: '#e74c3c',
@@ -63,7 +65,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>) {
   const model = data.model;
   const label = model.displayName ?? model.type;
-  const isUnknown = !nodeRegistry.get(model.type);
+  const def = nodeRegistry.get(model.type);
+  const isUnknown = !def;
+  const categoryColor = def ? (CATEGORY_COLORS[def.category] ?? '#555') : '#e67e22';
   const hasError = useEditorStore((s) =>
     s.validationErrors.some(
       (e) => e.edgeId && s.graph.edges.some(
@@ -102,6 +106,7 @@ function ProtoFluxNode({ data, selected }: NodeProps<Node<{ model: NodeModel }>>
           fontWeight: 'bold',
           fontSize: 13,
           borderBottom: `1px solid ${isUnknown ? '#e67e22' : '#555'}`,
+          borderTop: `3px solid ${categoryColor}`,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -175,9 +180,13 @@ export function Canvas() {
   const storeSetViewport = useEditorStore((s) => s.setViewport);
   const storeConnectEdge = useEditorStore((s) => s.connectEdge);
   const storeMoveNode = useEditorStore((s) => s.moveNode);
+  const storeMoveNodes = useEditorStore((s) => s.moveNodes);
   const storeDeleteNode = useEditorStore((s) => s.deleteNode);
   const storeDeleteEdge = useEditorStore((s) => s.deleteEdge);
   const storeAddNode = useEditorStore((s) => s.addNode);
+  const loadGraph = useEditorStore((s) => s.loadGraph);
+  const dirty = useEditorStore((s) => s.dirty);
+  const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
   const reactFlowInstance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const viewportRestoredRef = useRef(false);
@@ -232,9 +241,50 @@ export function Canvas() {
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
+  const handleFileDrop = useCallback(
+    (file: File) => {
+      if (!confirmUnsavedChanges(dirty)) return;
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        toast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`, 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const json = JSON.parse(ev.target?.result as string);
+          const { graph: importedGraph, warnings } = deserialize(json);
+          const name = json.meta?.name ?? file.name.replace(/\.protoflux\.json$/, '');
+          loadGraph(importedGraph, name);
+          toast('Graph imported successfully', 'success');
+          if (warnings.length > 0) {
+            toast(`Import warnings: ${warnings.join(', ')}`, 'info');
+          }
+        } catch (err) {
+          const msg = `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
+          toast(msg, 'error');
+          setStatusMessage(msg, 'error');
+        }
+      };
+      reader.readAsText(file);
+    },
+    [dirty, loadGraph, setStatusMessage],
+  );
+
   const onDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+
+      // Handle file drop (import .protoflux.json)
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.endsWith('.json')) {
+          handleFileDrop(file);
+          return;
+        }
+      }
+
+      // Handle node type drop from palette
       const nodeType = e.dataTransfer.getData('application/protoflux-node-type');
       if (!nodeType || !wrapperRef.current) return;
 
@@ -244,7 +294,7 @@ export function Canvas() {
       });
       storeAddNode(nodeType, position);
     },
-    [reactFlowInstance, storeAddNode],
+    [reactFlowInstance, storeAddNode, handleFileDrop],
   );
 
   const nodes: Node[] = useMemo(
@@ -298,19 +348,26 @@ export function Canvas() {
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      // Handle position changes
+      // Collect all position changes that finished dragging (batch into a single history entry)
+      const finishedMoves: Array<{ nodeId: string; position: { x: number; y: number } }> = [];
       for (const change of changes) {
         if (change.type === 'position' && change.position && change.dragging === false) {
-          storeMoveNode(change.id, change.position);
+          finishedMoves.push({ nodeId: change.id, position: change.position });
         }
         if (change.type === 'remove') {
           storeDeleteNode(change.id);
         }
       }
+      // Batch move: single history entry for all nodes dragged together
+      if (finishedMoves.length > 1) {
+        storeMoveNodes(finishedMoves);
+      } else if (finishedMoves.length === 1) {
+        storeMoveNode(finishedMoves[0].nodeId, finishedMoves[0].position);
+      }
       // Let React Flow handle visual updates
       void applyNodeChanges(changes, nodes);
     },
-    [nodes, storeMoveNode, storeDeleteNode],
+    [nodes, storeMoveNode, storeMoveNodes, storeDeleteNode],
   );
 
   const onEdgesChange: OnEdgesChange = useCallback(

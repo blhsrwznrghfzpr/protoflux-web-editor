@@ -70,7 +70,7 @@ describe('serialize / deserialize round-trip', () => {
         meta: { name: 'x', createdAt: '', updatedAt: '' },
         graph: { nodes: [], edges: [] },
       }),
-    ).toThrow('Unsupported schema version');
+    ).toThrow('newer than supported version');
   });
 });
 
