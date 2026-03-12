@@ -54,9 +54,54 @@ export function Inspector() {
   }, [graph.edges, selectedNode]);
 
   if (!selectedNode && selection.length === 0) {
+    // Graph overview when nothing is selected
+    const categoryCount = new Map<string, number>();
+    for (const node of graph.nodes) {
+      const def = nodeRegistry.get(node.type);
+      const cat = def?.category ?? 'Unknown';
+      categoryCount.set(cat, (categoryCount.get(cat) ?? 0) + 1);
+    }
+    const unknownCount = graph.nodes.filter((n) => !nodeRegistry.get(n.type)).length;
+
     return (
-      <div style={{ ...panelStyle, color: '#888', fontSize: 13 }}>
-        No node selected
+      <div style={panelStyle}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>Graph Overview</h3>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 6 }}>
+            <span style={{ color: '#888' }}>Nodes:</span> {graph.nodes.length}
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <span style={{ color: '#888' }}>Edges:</span> {graph.edges.length}
+          </div>
+          {unknownCount > 0 && (
+            <div style={{ marginBottom: 6, color: '#e67e22' }}>
+              Unknown nodes: {unknownCount}
+            </div>
+          )}
+        </div>
+        {categoryCount.size > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ color: '#888', marginBottom: 4 }}>Categories</div>
+            {Array.from(categoryCount.entries())
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 15)
+              .map(([cat, count]) => (
+                <div key={cat} style={{ marginBottom: 2, fontSize: 11 }}>
+                  {cat} <span style={{ color: '#666' }}>x{count}</span>
+                </div>
+              ))}
+            {categoryCount.size > 15 && (
+              <div style={{ fontSize: 11, color: '#666' }}>
+                ...and {categoryCount.size - 15} more
+              </div>
+            )}
+          </div>
+        )}
+        {graph.nodes.length === 0 && (
+          <div style={{ color: '#666', fontSize: 12, lineHeight: 1.5 }}>
+            Add nodes from the palette on the left, or right-click the canvas to search and add nodes.
+          </div>
+        )}
       </div>
     );
   }

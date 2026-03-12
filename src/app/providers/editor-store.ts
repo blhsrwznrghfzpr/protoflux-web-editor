@@ -97,6 +97,7 @@ function loadAutosave(): AutosaveData | null {
 }
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let statusDismissTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
@@ -339,7 +340,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (status === 'connected') set({ reconnectAttempt: 0 });
   },
   setReconnectAttempt: (attempt) => set({ reconnectAttempt: attempt }),
-  setStatusMessage: (text, type) =>
-    set({ statusMessage: { text, type, timestamp: Date.now() } }),
-  clearStatusMessage: () => set({ statusMessage: null }),
+  setStatusMessage: (text, type) => {
+    set({ statusMessage: { text, type, timestamp: Date.now() } });
+    // Auto-dismiss after timeout (info: 5s, warning: 8s, error: 12s)
+    const durations: Record<string, number> = { info: 5000, warning: 8000, error: 12000 };
+    if (statusDismissTimer) clearTimeout(statusDismissTimer);
+    statusDismissTimer = setTimeout(() => {
+      useEditorStore.setState({ statusMessage: null });
+    }, durations[type] ?? 8000);
+  },
+  clearStatusMessage: () => {
+    if (statusDismissTimer) clearTimeout(statusDismissTimer);
+    set({ statusMessage: null });
+  },
 }));

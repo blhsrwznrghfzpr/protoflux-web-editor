@@ -45,6 +45,7 @@ export function Palette() {
   const [search, setSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const addNode = useEditorStore((s) => s.addNode);
+  const viewport = useEditorStore((s) => s.viewport);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const index = useMemo(() => getSearchIndex(), []);
@@ -114,8 +115,11 @@ export function Palette() {
   }, []);
 
   const handleAdd = (type: string) => {
-    const x = 200 + Math.random() * 200;
-    const y = 200 + Math.random() * 200;
+    // Place at approximate viewport center with slight random offset to avoid stacking
+    const centerX = (-viewport.x + window.innerWidth / 2) / viewport.zoom;
+    const centerY = (-viewport.y + window.innerHeight / 2) / viewport.zoom;
+    const x = centerX + (Math.random() - 0.5) * 100;
+    const y = centerY + (Math.random() - 0.5) * 100;
     addNode(type, { x, y });
   };
 

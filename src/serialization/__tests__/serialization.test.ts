@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { serialize } from '../serialize';
 import { deserialize } from '../deserialize';
+import { migrateToLatest, CURRENT_VERSION } from '../migrations';
 import { addNode } from '@/editor-core/commands/add-node';
 import { connectEdge } from '@/editor-core/commands/connect-edge';
 import { deleteNode } from '@/editor-core/commands/delete-node';
@@ -164,5 +165,85 @@ describe('integration: Import → Edit → Export → re-Import', () => {
     const { graph: restored } = deserialize(reExported);
     expect(restored.nodes[0].type).toBe('Custom/UnknownNode');
     expect(restored.nodes[0].params?.secret).toBe('keepme');
+  });
+});
+
+describe('migration framework', () => {
+  it('passes through current version documents unchanged', () => {
+    const doc = {
+      schemaVersion: CURRENT_VERSION,
+      meta: { name: 'test', createdAt: '', updatedAt: '' },
+      graph: { nodes: [], edges: [] },
+    };
+    const result = migrateToLatest(doc) as Record<string, unknown>;
+    expect(result.schemaVersion).toBe(CURRENT_VERSION);
+  });
+
+  it('rejects non-object input', () => {
+    expect(() => migrateToLatest('string')).toThrow('expected an object');
+    expect(() => migrateToLatest(null)).toThrow('expected an object');
+    expect(() => migrateToLatest(42)).toThrow('expected an object');
+  });
+
+  it('treats documents without schemaVersion as v1', () => {
+    const doc = {
+      meta: { name: 'legacy', createdAt: '', updatedAt: '' },
+      graph: { nodes: [], edges: [] },
+    };
+    const result = migrateToLatest(doc) as Record<string, unknown>;
+    expect(result.schemaVersion).toBe(1);
+  });
+
+  it('rejects invalid schema version values', () => {
+    expect(() => migrateToLatest({ schemaVersion: 'bad' })).toThrow('Invalid schema version');
+    expect(() => migrateToLatest({ schemaVersion: 0 })).toThrow('Invalid schema version');
+    expect(() => migrateToLatest({ schemaVersion: -1 })).toThrow('Invalid schema version');
+    expect(() => migrateToLatest({ schemaVersion: 1.5 })).toThrow('Invalid schema version');
+  });
+
+  it('rejects future versions with helpful message', () => {
+    expect(() =>
+      migrateToLatest({ schemaVersion: 999 }),
+    ).toThrow('Please update the editor');
+  });
+
+  it('adds unknownRaw to unknown nodes during deserialization', () => {
+    const doc = {
+      schemaVersion: 1,
+      meta: { name: 'x', createdAt: '', updatedAt: '' },
+      graph: {
+        nodes: [{
+          id: 'n1',
+          type: 'Nonexistent/Node',
+          position: { x: 0, y: 0 },
+          inputs: [],
+          outputs: [],
+        }],
+        edges: [],
+      },
+    };
+    const { graph, warnings } = deserialize(doc);
+    expect(graph.nodes[0].unknownRaw).toBeDefined();
+    expect(warnings.some((w) => w.includes('Unknown node type'))).toBe(true);
+  });
+
+  it('does not overwrite existing unknownRaw', () => {
+    const doc = {
+      schemaVersion: 1,
+      meta: { name: 'x', createdAt: '', updatedAt: '' },
+      graph: {
+        nodes: [{
+          id: 'n1',
+          type: 'Nonexistent/Node',
+          position: { x: 0, y: 0 },
+          inputs: [],
+          outputs: [],
+          unknownRaw: { custom: 'data' },
+        }],
+        edges: [],
+      },
+    };
+    const { graph } = deserialize(doc);
+    expect(graph.nodes[0].unknownRaw).toEqual({ custom: 'data' });
   });
 });

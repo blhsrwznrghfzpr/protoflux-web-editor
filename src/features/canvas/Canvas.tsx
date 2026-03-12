@@ -382,9 +382,48 @@ export function Canvas() {
     [edges, storeDeleteEdge],
   );
 
+  // Real-time validation during edge dragging (§7.2)
+  const isValidConnection = useCallback(
+    (conn: Edge | Connection) => {
+      const source = conn.source;
+      const target = conn.target;
+      const sourceHandle = conn.sourceHandle ?? undefined;
+      const targetHandle = conn.targetHandle ?? undefined;
+
+      if (!source || !target || !sourceHandle || !targetHandle) {
+        return false;
+      }
+      const fromNode = graph.nodes.find((n) => n.id === source);
+      const toNode = graph.nodes.find((n) => n.id === target);
+      if (!fromNode || !toNode) return false;
+
+      const outputPort = fromNode.outputs.find((p) => p.id === sourceHandle);
+      const inputPort = toNode.inputs.find((p) => p.id === targetHandle);
+      if (!outputPort || !inputPort) return false;
+
+      // Type compatibility check
+      const compat = checkTypeCompatibility(outputPort.dataType, inputPort.dataType);
+      if (!compat.compatible) return false;
+
+      // Self-connection check
+      if (source === target) return false;
+
+      return true;
+    },
+    [graph.nodes],
+  );
+
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target && connection.sourceHandle && connection.targetHandle) {
+        // Auto-replace: if input already has a connection, remove it first
+        const existingEdge = graph.edges.find(
+          (e) => e.to.nodeId === connection.target && e.to.portId === connection.targetHandle,
+        );
+        if (existingEdge) {
+          storeDeleteEdge(existingEdge.id);
+        }
+
         const error = storeConnectEdge(
           connection.source,
           connection.sourceHandle,
@@ -396,7 +435,7 @@ export function Canvas() {
         }
       }
     },
-    [storeConnectEdge],
+    [storeConnectEdge, storeDeleteEdge, graph.edges],
   );
 
   const onSelectionChange = useCallback(
@@ -453,6 +492,7 @@ export function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onSelectionChange={onSelectionChange}
         onViewportChange={onViewportChange}
         onPaneClick={() => setContextMenu(null)}
