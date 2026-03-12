@@ -130,13 +130,19 @@ export class TsrlBridge implements IResoniteBridge {
       const componentId = componentIds[i]!;
 
       // エッジからこのノードの出力ポートの接続先をコンポーネント members に reference として設定
+      // Fan-out: 同一出力ポートから複数ターゲットへの接続を保持するため、
+      // 重複キーにはインデックスサフィックスを付与する
       const members: Record<string, AnyFieldValue> = {};
+      const memberKeyCount = new Map<string, number>();
       for (const edge of graph.edges) {
         if (edge.from.nodeId === node.id) {
           const targetComponentId = nodeIdToComponentId.get(edge.to.nodeId);
           if (targetComponentId) {
             const port = node.outputs.find((p) => p.id === edge.from.portId);
-            const memberKey = port?.name ?? edge.from.portId;
+            const baseName = port?.name ?? edge.from.portId;
+            const count = memberKeyCount.get(baseName) ?? 0;
+            const memberKey = count === 0 ? baseName : `${baseName}_${count}`;
+            memberKeyCount.set(baseName, count + 1);
             members[memberKey] = {
               $type: 'reference',
               targetId: targetComponentId,
@@ -323,7 +329,12 @@ function isReference(value: AnyFieldValue): value is Reference {
 }
 
 function isProtoFluxComponent(componentType: string): boolean {
-  return componentType.includes('ProtoFlux') || componentType.includes('FrooxEngine');
+  // Match actual ProtoFlux node types under the FrooxEngine.ProtoFlux namespace.
+  // Plain "FrooxEngine.*" is too broad and matches unrelated engine components.
+  return (
+    componentType.includes('ProtoFlux') ||
+    componentType.startsWith('FrooxEngine.ProtoFlux.')
+  );
 }
 
 /**
