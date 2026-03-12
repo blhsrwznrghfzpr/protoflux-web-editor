@@ -8,9 +8,13 @@ const STATUS_TYPE_COLORS: Record<string, string> = {
 
 export function StatusBar() {
   const graph = useEditorStore((s) => s.graph);
+  const selection = useEditorStore((s) => s.selection);
+  const dirty = useEditorStore((s) => s.dirty);
   const bridgeStatus = useEditorStore((s) => s.bridgeStatus);
+  const reconnectAttempt = useEditorStore((s) => s.reconnectAttempt);
   const statusMessage = useEditorStore((s) => s.statusMessage);
   const clearStatusMessage = useEditorStore((s) => s.clearStatusMessage);
+  const validationErrors = useEditorStore((s) => s.validationErrors);
 
   const BRIDGE_LABELS: Record<string, string> = {
     disconnected: 'Disconnected',
@@ -28,6 +32,9 @@ export function StatusBar() {
 
   return (
     <div
+      role="status"
+      aria-label="Editor status"
+      aria-live="polite"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -44,6 +51,24 @@ export function StatusBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <span>Nodes: {graph.nodes.length}</span>
         <span>Edges: {graph.edges.length}</span>
+        {selection.length > 0 && (
+          <span style={{ color: '#7c3aed' }}>
+            Selected: {selection.length}
+          </span>
+        )}
+        {dirty && (
+          <span style={{ color: '#f39c12' }} title="Unsaved changes">
+            Modified
+          </span>
+        )}
+        {validationErrors.length > 0 && (
+          <span
+            style={{ color: '#e74c3c' }}
+            title={validationErrors.map((e) => e.message).join('\n')}
+          >
+            Errors: {validationErrors.length}
+          </span>
+        )}
       </div>
 
       {statusMessage && (
@@ -81,7 +106,14 @@ export function StatusBar() {
             background: BRIDGE_COLORS[bridgeStatus] ?? '#888',
           }}
         />
-        <span>{BRIDGE_LABELS[bridgeStatus] ?? bridgeStatus}</span>
+        <span>
+          {BRIDGE_LABELS[bridgeStatus] ?? bridgeStatus}
+          {reconnectAttempt > 0 && bridgeStatus !== 'connected' && (
+            <span style={{ color: '#f39c12', marginLeft: 4 }}>
+              (retry {reconnectAttempt}/5)
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

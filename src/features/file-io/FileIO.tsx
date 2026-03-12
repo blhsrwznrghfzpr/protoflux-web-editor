@@ -2,6 +2,7 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { serialize } from '@/serialization/serialize';
 import { deserialize } from '@/serialization/deserialize';
 import { toast } from '@/shared/components/Toast';
+import { confirmUnsavedChanges } from '@/shared/utils';
 import { useCallback, useEffect, useRef } from 'react';
 
 export function useFileIO() {
@@ -25,6 +26,16 @@ export function useFileIO() {
 
   const handleImport = useCallback(
     (file: File) => {
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`, 'error');
+        return;
+      }
+      if (file.size === 0) {
+        toast('File is empty', 'error');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -43,6 +54,9 @@ export function useFileIO() {
           setStatusMessage(msg, 'error');
         }
       };
+      reader.onerror = () => {
+        toast('Failed to read file', 'error');
+      };
       reader.readAsText(file);
     },
     [loadGraph, setStatusMessage],
@@ -53,7 +67,14 @@ export function useFileIO() {
 
 export function ImportButton() {
   const { handleImport } = useFileIO();
+  const dirty = useEditorStore((s) => s.dirty);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = useCallback(() => {
+    if (confirmUnsavedChanges(dirty)) {
+      inputRef.current?.click();
+    }
+  }, [dirty]);
 
   return (
     <>
@@ -69,8 +90,9 @@ export function ImportButton() {
         }}
       />
       <button
-        onClick={() => inputRef.current?.click()}
+        onClick={handleClick}
         style={toolbarButtonStyle}
+        aria-label="Import graph file"
       >
         Import
       </button>
@@ -88,7 +110,7 @@ export function ExportButton() {
   }, [handleExport]);
 
   return (
-    <button onClick={handleExport} style={toolbarButtonStyle}>
+    <button onClick={handleExport} style={toolbarButtonStyle} aria-label="Export graph (Ctrl+S)">
       Export
     </button>
   );

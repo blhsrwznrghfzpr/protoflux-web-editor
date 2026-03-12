@@ -2,15 +2,47 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { useMemo } from 'react';
 import type { EdgeModel } from '@/shared/types';
 
+const panelStyle: React.CSSProperties = {
+  width: 240,
+  background: '#1a1a2e',
+  borderLeft: '1px solid #333',
+  padding: 16,
+  color: '#e0e0e0',
+  fontSize: 12,
+  fontFamily: 'monospace',
+  overflow: 'auto',
+};
+
+const dangerBtnStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px',
+  background: '#e74c3c',
+  border: 'none',
+  borderRadius: 4,
+  color: 'white',
+  cursor: 'pointer',
+  fontSize: 12,
+};
+
 export function Inspector() {
   const graph = useEditorStore((s) => s.graph);
   const selection = useEditorStore((s) => s.selection);
   const updateParam = useEditorStore((s) => s.updateParam);
   const deleteNode = useEditorStore((s) => s.deleteNode);
+  const deleteNodes = useEditorStore((s) => s.deleteNodes);
+  const deleteEdge = useEditorStore((s) => s.deleteEdge);
+  const copySelected = useEditorStore((s) => s.copySelected);
+  const duplicateSelected = useEditorStore((s) => s.duplicateSelected);
 
   const selectedNode = useMemo(() => {
     if (selection.length !== 1) return null;
     return graph.nodes.find((n) => n.id === selection[0]) ?? null;
+  }, [graph.nodes, selection]);
+
+  const selectedNodes = useMemo(() => {
+    if (selection.length <= 1) return [];
+    const idSet = new Set(selection);
+    return graph.nodes.filter((n) => idSet.has(n.id));
   }, [graph.nodes, selection]);
 
   const connectedEdges = useMemo(() => {
@@ -20,36 +52,101 @@ export function Inspector() {
     );
   }, [graph.edges, selectedNode]);
 
-  if (!selectedNode) {
+  if (!selectedNode && selection.length === 0) {
     return (
-      <div
-        style={{
-          width: 240,
-          background: '#1a1a2e',
-          borderLeft: '1px solid #333',
-          padding: 16,
-          color: '#888',
-          fontSize: 13,
-        }}
-      >
-        {selection.length === 0 ? 'No node selected' : `${selection.length} nodes selected`}
+      <div style={{ ...panelStyle, color: '#888', fontSize: 13 }}>
+        No node selected
       </div>
     );
   }
 
+  // Multi-node selection panel
+  if (selection.length > 1) {
+    const typeCount = new Map<string, number>();
+    for (const node of selectedNodes) {
+      const label = node.displayName ?? node.type;
+      typeCount.set(label, (typeCount.get(label) ?? 0) + 1);
+    }
+    const connectionCount = graph.edges.filter((e) => {
+      const selSet = new Set(selection);
+      return selSet.has(e.from.nodeId) && selSet.has(e.to.nodeId);
+    }).length;
+
+    return (
+      <div style={panelStyle}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 14 }}>
+          {selection.length} nodes selected
+        </h3>
+
+        <div style={{ marginBottom: 12, fontSize: 11, color: '#888' }}>
+          {connectionCount} internal connection{connectionCount !== 1 ? 's' : ''}
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ color: '#888', marginBottom: 4 }}>Node Types</div>
+          {Array.from(typeCount.entries())
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([type, count]) => (
+              <div key={type} style={{ marginBottom: 2, fontSize: 11 }}>
+                {type} <span style={{ color: '#666' }}>x{count}</span>
+              </div>
+            ))}
+          {typeCount.size > 10 && (
+            <div style={{ fontSize: 11, color: '#666' }}>
+              ...and {typeCount.size - 10} more types
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            onClick={copySelected}
+            style={{
+              width: '100%',
+              padding: '8px',
+              background: '#2a2a3a',
+              border: '1px solid #444',
+              borderRadius: 4,
+              color: '#e0e0e0',
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            Copy (Ctrl+C)
+          </button>
+          <button
+            onClick={duplicateSelected}
+            style={{
+              width: '100%',
+              padding: '8px',
+              background: '#2a2a3a',
+              border: '1px solid #444',
+              borderRadius: 4,
+              color: '#e0e0e0',
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            Duplicate (Ctrl+D)
+          </button>
+          <button
+            onClick={() => deleteNodes(selection)}
+            style={dangerBtnStyle}
+          >
+            Delete {selection.length} Nodes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedNode) {
+    return <div style={{ ...panelStyle, color: '#888', fontSize: 13 }}>No node selected</div>;
+  }
+
   return (
-    <div
-      style={{
-        width: 240,
-        background: '#1a1a2e',
-        borderLeft: '1px solid #333',
-        padding: 16,
-        color: '#e0e0e0',
-        fontSize: 12,
-        fontFamily: 'monospace',
-        overflow: 'auto',
-      }}
-    >
+    <div style={panelStyle}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>
         {selectedNode.displayName ?? selectedNode.type}
       </h3>
@@ -135,11 +232,26 @@ export function Inspector() {
             const otherLabel = otherNode?.displayName ?? otherNode?.type ?? otherNodeId;
             const portId = isOutput ? edge.from.portId : edge.to.portId;
             return (
-              <div key={edge.id} style={{ marginBottom: 2, fontSize: 11 }}>
+              <div key={edge.id} style={{ marginBottom: 2, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ color: isOutput ? '#2ecc71' : '#3498db' }}>
                   {isOutput ? '\u2192' : '\u2190'}
-                </span>{' '}
-                {portId} \u2014 {otherLabel}
+                </span>
+                <span style={{ flex: 1 }}>{portId} \u2014 {otherLabel}</span>
+                <button
+                  onClick={() => deleteEdge(edge.id)}
+                  title="Disconnect"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#666',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    padding: '0 2px',
+                    lineHeight: 1,
+                  }}
+                >
+                  \u00D7
+                </button>
               </div>
             );
           })}

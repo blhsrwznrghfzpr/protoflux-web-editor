@@ -1,14 +1,21 @@
 import { ResoniteLink } from '@eth0fox/tsrl';
-import type { DataModelOperationClientMessage } from '@eth0fox/tsrl';
-import type { ProtofluxDocument } from '@/shared/types';
+import type { DataModelOperationClientMessage, Slot, AnyFieldValue, Reference } from '@eth0fox/tsrl';
+import type { ProtofluxDocument, NodeModel, EdgeModel, PortModel } from '@/shared/types';
 import type { BridgeStatus, IResoniteBridge } from './types';
+import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { generateId } from '@/shared/utils';
 
 
 export class TsrlBridge implements IResoniteBridge {
   private link: ResoniteLink | null = null;
   private status: BridgeStatus = 'disconnected';
   private listeners = new Set<(status: BridgeStatus) => void>();
+  private reconnectListeners = new Set<(attempt: number) => void>();
   private url: string;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private intentionalDisconnect = false;
 
   constructor(url = 'ws://localhost:11404') {
     this.url = url;
@@ -23,15 +30,40 @@ export class TsrlBridge implements IResoniteBridge {
     this.listeners.forEach((cb) => cb(status));
   }
 
+  private scheduleReconnect() {
+    if (this.intentionalDisconnect) return;
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.setStatus('error');
+      return;
+    }
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+    this.reconnectAttempts++;
+    this.reconnectListeners.forEach((cb) => cb(this.reconnectAttempts));
+    this.reconnectTimer = setTimeout(async () => {
+      try {
+        await this.connect();
+      } catch {
+        // connect() already handles error status and will re-trigger scheduleReconnect via close handler
+      }
+    }, delay);
+  }
+
   async connect(): Promise<void> {
     if (this.status === 'connected' || this.status === 'connecting') return;
+    this.intentionalDisconnect = false;
     this.setStatus('connecting');
     try {
       const link = await ResoniteLink.connect(this.url);
       this.link = link;
+      this.reconnectAttempts = 0;
       link.socket.addEventListener('close', () => {
         this.link = null;
-        this.setStatus('disconnected');
+        if (this.intentionalDisconnect) {
+          this.setStatus('disconnected');
+        } else {
+          this.setStatus('disconnected');
+          this.scheduleReconnect();
+        }
       });
       link.socket.addEventListener('error', () => {
         this.setStatus('error');
@@ -39,11 +71,18 @@ export class TsrlBridge implements IResoniteBridge {
       this.setStatus('connected');
     } catch {
       this.setStatus('error');
+      this.scheduleReconnect();
       throw new Error('ResoniteLinkへの接続に失敗しました');
     }
   }
 
   async disconnect(): Promise<void> {
+    this.intentionalDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
     if (this.link) {
       this.link.socket.close();
       this.link = null;
@@ -63,6 +102,12 @@ export class TsrlBridge implements IResoniteBridge {
     const parentSlotId = link.allocateId();
     const nodeSlotIds = graph.nodes.map(() => link.allocateId());
     const componentIds = graph.nodes.map(() => link.allocateId());
+
+    // ノード ID → コンポーネント ID のマッピング（エッジ接続用）
+    const nodeIdToComponentId = new Map<string, string>();
+    for (let i = 0; i < graph.nodes.length; i++) {
+      nodeIdToComponentId.set(graph.nodes[i]!.id, componentIds[i]!);
+    }
 
     const operations: DataModelOperationClientMessage[] = [];
 
@@ -84,6 +129,28 @@ export class TsrlBridge implements IResoniteBridge {
       const slotId = nodeSlotIds[i]!;
       const componentId = componentIds[i]!;
 
+      // エッジからこのノードの出力ポートの接続先をコンポーネント members に reference として設定
+      // Fan-out: 同一出力ポートから複数ターゲットへの接続を保持するため、
+      // 重複キーにはインデックスサフィックスを付与する
+      const members: Record<string, AnyFieldValue> = {};
+      const memberKeyCount = new Map<string, number>();
+      for (const edge of graph.edges) {
+        if (edge.from.nodeId === node.id) {
+          const targetComponentId = nodeIdToComponentId.get(edge.to.nodeId);
+          if (targetComponentId) {
+            const port = node.outputs.find((p) => p.id === edge.from.portId);
+            const baseName = port?.name ?? edge.from.portId;
+            const count = memberKeyCount.get(baseName) ?? 0;
+            const memberKey = count === 0 ? baseName : `${baseName}_${count}`;
+            memberKeyCount.set(baseName, count + 1);
+            members[memberKey] = {
+              $type: 'reference',
+              targetId: targetComponentId,
+            } as Reference;
+          }
+        }
+      }
+
       operations.push({
         $type: 'addSlot',
         data: {
@@ -102,7 +169,7 @@ export class TsrlBridge implements IResoniteBridge {
         data: {
           id: componentId,
           componentType: node.type,
-          members: {},
+          members,
         },
       });
     }
@@ -114,8 +181,196 @@ export class TsrlBridge implements IResoniteBridge {
     }
   }
 
+  async pullGraph(): Promise<ProtofluxDocument> {
+    if (!this.link) throw new Error('ResoniteLinkに接続されていません');
+    const link = this.link;
+
+    // Root スロットを depth=2 で取得（親スロット → 各ノードスロット + コンポーネント）
+    const root = await link.slotGet('Root', true, 2);
+    const warnings: string[] = [];
+
+    // Root の子スロットから ProtoFlux コンポーネントを含むグラフスロットを探す
+    const graphSlot = findGraphSlot(root);
+    if (!graphSlot) {
+      throw new Error('ProtoFlux グラフが見つかりませんでした');
+    }
+
+    const children = graphSlot.children ?? [];
+    const nodes: NodeModel[] = [];
+    const edges: EdgeModel[] = [];
+
+    // コンポーネント ID → ノード ID のマッピング（エッジ再構築用）
+    const componentIdToNodeId = new Map<string, string>();
+
+    for (const childSlot of children) {
+      if (childSlot.isReferenceOnly) continue;
+
+      const components = childSlot.components ?? [];
+      const protofluxComponent = components.find(
+        (c) => !c.isReferenceOnly && c.componentType && isProtoFluxComponent(c.componentType),
+      );
+
+      if (!protofluxComponent || protofluxComponent.isReferenceOnly) continue;
+
+      const nodeId = generateId();
+      const type = protofluxComponent.componentType;
+      const def = nodeRegistry.get(type);
+
+      // スロット位置からエディタ座標に変換（push の逆変換）
+      const pos = childSlot.position?.value;
+      const position = {
+        x: (pos?.x ?? 0) * 1000,
+        y: -(pos?.y ?? 0) * 1000,
+      };
+
+      const inputs: PortModel[] = def
+        ? def.inputs.map((inp) => ({
+            id: generateId(),
+            name: inp.name,
+            dataType: inp.dataType,
+          }))
+        : [];
+
+      const outputs: PortModel[] = def
+        ? def.outputs.map((out) => ({
+            id: generateId(),
+            name: out.name,
+            dataType: out.dataType,
+          }))
+        : [];
+
+      const node: NodeModel = {
+        id: nodeId,
+        type,
+        displayName: def?.displayName ?? childSlot.name?.value ?? type,
+        position,
+        inputs,
+        outputs,
+        ...(!def && { unknownRaw: { componentId: protofluxComponent.id } }),
+      };
+
+      if (!def) {
+        warnings.push(`Unknown node type: ${type}`);
+      }
+
+      nodes.push(node);
+      componentIdToNodeId.set(protofluxComponent.id, nodeId);
+    }
+
+    // エッジの再構築: コンポーネント members 内の reference を解析
+    for (const childSlot of children) {
+      if (childSlot.isReferenceOnly) continue;
+      const components = childSlot.components ?? [];
+      const protofluxComponent = components.find(
+        (c) => !c.isReferenceOnly && c.componentType && isProtoFluxComponent(c.componentType),
+      );
+      if (!protofluxComponent || protofluxComponent.isReferenceOnly) continue;
+
+      const sourceNodeId = componentIdToNodeId.get(protofluxComponent.id);
+      if (!sourceNodeId) continue;
+
+      const sourceNode = nodes.find((n) => n.id === sourceNodeId);
+      if (!sourceNode) continue;
+
+      const members = protofluxComponent.members ?? {};
+      for (const [memberName, memberValue] of Object.entries(members)) {
+        if (!isReference(memberValue) || !memberValue.targetId) continue;
+
+        const targetNodeId = componentIdToNodeId.get(memberValue.targetId);
+        if (!targetNodeId) continue;
+
+        // ソースノードの出力ポートを memberName で探す
+        const sourcePort = sourceNode.outputs.find((p) => p.name === memberName);
+        if (!sourcePort) continue;
+
+        const targetNode = nodes.find((n) => n.id === targetNodeId);
+        if (!targetNode || targetNode.inputs.length === 0) continue;
+
+        // ターゲットノードの未接続入力ポートに接続
+        const usedInputPorts = new Set(
+          edges.filter((e) => e.to.nodeId === targetNodeId).map((e) => e.to.portId),
+        );
+        const availableInput = targetNode.inputs.find((p) => !usedInputPorts.has(p.id));
+        if (!availableInput) continue;
+
+        edges.push({
+          id: generateId(),
+          from: { nodeId: sourceNodeId, portId: sourcePort.id },
+          to: { nodeId: targetNodeId, portId: availableInput.id },
+        });
+      }
+    }
+
+    return {
+      schemaVersion: 1,
+      meta: {
+        name: graphSlot.name?.value ?? 'Pulled Graph',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      graph: { nodes, edges },
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
   onStatusChange(cb: (status: BridgeStatus) => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
   }
+
+  onReconnectAttempt(cb: (attempt: number) => void): () => void {
+    this.reconnectListeners.add(cb);
+    return () => this.reconnectListeners.delete(cb);
+  }
+}
+
+function isReference(value: AnyFieldValue): value is Reference {
+  return value != null && typeof value === 'object' && '$type' in value && value.$type === 'reference';
+}
+
+function isProtoFluxComponent(componentType: string): boolean {
+  // Match actual ProtoFlux node types under the FrooxEngine.ProtoFlux namespace.
+  // Plain "FrooxEngine.*" is too broad and matches unrelated engine components.
+  return (
+    componentType.includes('ProtoFlux') ||
+    componentType.startsWith('FrooxEngine.ProtoFlux.')
+  );
+}
+
+/**
+ * Root の子スロットから ProtoFlux コンポーネントを含むグラフスロットを探す
+ */
+function findGraphSlot(root: Slot & { isReferenceOnly: false }): (Slot & { isReferenceOnly: false }) | null {
+  const children = root.children ?? [];
+
+  // 子スロットに ProtoFlux コンポーネントを持つ孫スロットがあるか探す
+  for (const child of children) {
+    if (child.isReferenceOnly) continue;
+
+    const grandChildren = child.children ?? [];
+    const hasProtoFlux = grandChildren.some((gc) => {
+      if (gc.isReferenceOnly) return false;
+      return (gc.components ?? []).some(
+        (c) => !c.isReferenceOnly && c.componentType && isProtoFluxComponent(c.componentType),
+      );
+    });
+
+    if (hasProtoFlux) {
+      return child as Slot & { isReferenceOnly: false };
+    }
+  }
+
+  // 見つからない場合、直下にノードがあれば Root を返す
+  const hasDirectProtoFlux = children.some((child) => {
+    if (child.isReferenceOnly) return false;
+    return (child.components ?? []).some(
+      (c) => !c.isReferenceOnly && c.componentType && isProtoFluxComponent(c.componentType),
+    );
+  });
+
+  if (hasDirectProtoFlux) {
+    return root;
+  }
+
+  return null;
 }

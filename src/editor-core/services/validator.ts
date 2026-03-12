@@ -1,14 +1,31 @@
 import type { GraphModel, NodeId, PortId } from '@/shared/types';
 import { checkTypeCompatibility } from './type-compatibility';
+import { nodeRegistry } from '../model/node-registry';
 
 export interface ValidationError {
-  type: 'port-not-found' | 'type-mismatch' | 'duplicate-input' | 'cycle-detected';
+  type: 'port-not-found' | 'type-mismatch' | 'duplicate-input' | 'cycle-detected' | 'param-invalid';
   message: string;
   edgeId?: string;
+  nodeId?: string;
 }
 
 export function validateGraph(graph: GraphModel): ValidationError[] {
   const errors: ValidationError[] = [];
+
+  // Node-level parameter validation
+  for (const node of graph.nodes) {
+    const def = nodeRegistry.get(node.type);
+    if (def?.validate && node.params) {
+      const paramErrors = def.validate(node.params);
+      for (const msg of paramErrors) {
+        errors.push({
+          type: 'param-invalid',
+          message: `Node ${node.displayName ?? node.type}: ${msg}`,
+          nodeId: node.id,
+        });
+      }
+    }
+  }
 
   const nodeMap = new Map(graph.nodes.map((n) => [n.id, n]));
 

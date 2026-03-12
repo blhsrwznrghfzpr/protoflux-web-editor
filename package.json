@@ -24,6 +24,7 @@
     "@eth0fox/tsrl": "^2.0.0",
     "@tanstack/react-virtual": "^3.13.21",
     "@xyflow/react": "^12.10.1",
+    "fuse.js": "^7.1.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "zod": "^4.3.6",

@@ -43,6 +43,20 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Copy: Ctrl+C
+      if (isCtrl && e.key === 'c' && !isInputFocused) {
+        e.preventDefault();
+        useEditorStore.getState().copySelected();
+        return;
+      }
+
+      // Paste: Ctrl+V
+      if (isCtrl && e.key === 'v' && !isInputFocused) {
+        e.preventDefault();
+        useEditorStore.getState().pasteClipboard();
+        return;
+      }
+
       // Duplicate: Ctrl+D
       if (isCtrl && e.key === 'd' && !isInputFocused) {
         e.preventDefault();
@@ -84,6 +98,20 @@ export function useKeyboardShortcuts() {
         for (const nodeId of selection) {
           deleteNode(nodeId);
         }
+        return;
+      }
+
+      // Zoom to fit all: Shift+1
+      if (e.shiftKey && e.code === 'Digit1' && !isInputFocused) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('protoflux-fit-view'));
+        return;
+      }
+
+      // Zoom to selection: Shift+2
+      if (e.shiftKey && e.code === 'Digit2' && !isInputFocused) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('protoflux-fit-selection'));
       }
     };
 

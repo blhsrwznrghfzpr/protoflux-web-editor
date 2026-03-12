@@ -2,6 +2,7 @@ import { useEditorStore } from '@/app/providers/editor-store';
 import { ImportButton, ExportButton } from '@/features/file-io/FileIO';
 import { BridgePanel } from '@/features/bridge-panel/BridgePanel';
 import { nodeRegistry } from '@/editor-core/model/node-registry';
+import { confirmUnsavedChanges } from '@/shared/utils';
 import { useMemo, useState, useRef, useCallback, type KeyboardEvent } from 'react';
 
 export function Toolbar() {
@@ -10,6 +11,7 @@ export function Toolbar() {
   const dirty = useEditorStore((s) => s.dirty);
   const documentName = useEditorStore((s) => s.documentName);
   const setDocumentName = useEditorStore((s) => s.setDocumentName);
+  const newGraph = useEditorStore((s) => s.newGraph);
   const undoAvailable = useEditorStore((s) => s.history.undoStack.length > 0);
   const redoAvailable = useEditorStore((s) => s.history.redoStack.length > 0);
   const datasetMeta = useMemo(() => nodeRegistry.getDatasetMeta(), []);
@@ -27,8 +29,16 @@ export function Toolbar() {
     if (e.key === 'Escape') setEditingName(false);
   }, [commitName]);
 
+  const handleNew = useCallback(() => {
+    if (confirmUnsavedChanges(dirty)) {
+      newGraph();
+    }
+  }, [dirty, newGraph]);
+
   return (
-    <div
+    <nav
+      role="toolbar"
+      aria-label="Editor toolbar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -84,19 +94,22 @@ export function Toolbar() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button onClick={undo} disabled={!undoAvailable} style={btnStyle(undoAvailable)}>
+        <button onClick={undo} disabled={!undoAvailable} style={btnStyle(undoAvailable)} aria-label="Undo (Ctrl+Z)">
           Undo
         </button>
-        <button onClick={redo} disabled={!redoAvailable} style={btnStyle(redoAvailable)}>
+        <button onClick={redo} disabled={!redoAvailable} style={btnStyle(redoAvailable)} aria-label="Redo (Ctrl+Shift+Z)">
           Redo
         </button>
-        <div style={{ width: 1, height: 20, background: '#444' }} />
+        <div style={{ width: 1, height: 20, background: '#444' }} aria-hidden />
+        <button onClick={handleNew} style={btnStyle(true)} aria-label="New graph">
+          New
+        </button>
         <ImportButton />
         <ExportButton />
         <div style={{ width: 1, height: 20, background: '#444' }} />
         <BridgePanel />
       </div>
-    </div>
+    </nav>
   );
 }
 

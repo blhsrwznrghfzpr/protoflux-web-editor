@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import Fuse from 'fuse.js';
 import { nodeRegistry, type NodeDefinition } from '@/editor-core/model/node-registry';
 import { useEditorStore } from '@/app/providers/editor-store';
 
@@ -10,6 +11,8 @@ interface SearchEntry {
 }
 
 let cachedIndex: SearchEntry[] | null = null;
+let cachedFuse: Fuse<SearchEntry> | null = null;
+
 function getSearchIndex(): SearchEntry[] {
   if (cachedIndex) return cachedIndex;
   const placeable = nodeRegistry.listPlaceable();
@@ -18,6 +21,17 @@ function getSearchIndex(): SearchEntry[] {
     searchText: `${def.displayName ?? ''} ${def.type} ${def.category}`.toLowerCase(),
   }));
   return cachedIndex;
+}
+
+function getFuse(index: SearchEntry[]): Fuse<SearchEntry> {
+  if (cachedFuse) return cachedFuse;
+  cachedFuse = new Fuse(index, {
+    keys: ['def.displayName', 'def.type', 'def.category'],
+    threshold: 0.4,
+    ignoreLocation: true,
+    includeScore: true,
+  });
+  return cachedFuse;
 }
 
 type FlatItem =
@@ -36,13 +50,20 @@ export function Palette() {
   const index = useMemo(() => getSearchIndex(), []);
   const isSearching = search.length > 0;
 
+  const fuse = useMemo(() => getFuse(index), [index]);
+
   const filtered = useMemo(() => {
     if (!isSearching) return index;
-    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
-    return index.filter((entry) =>
+    const query = search.trim();
+    // Use substring match first; fall back to fuzzy if no results
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const exact = index.filter((entry) =>
       terms.every((term) => entry.searchText.includes(term)),
     );
-  }, [index, search, isSearching]);
+    if (exact.length > 0) return exact;
+    // Fuzzy search via Fuse.js
+    return fuse.search(query, { limit: 100 }).map((r) => r.item);
+  }, [index, fuse, search, isSearching]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, NodeDefinition[]>();
@@ -127,9 +148,29 @@ export function Palette() {
             boxSizing: 'border-box',
           }}
         />
-        <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
-          {totalCount.toLocaleString()} nodes
-          {isSearching ? ' found' : ' available'}
+        <div style={{ fontSize: 10, color: '#666', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>
+            {totalCount.toLocaleString()} nodes
+            {isSearching ? ' found' : ' available'}
+          </span>
+          {!isSearching && (
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              <button
+                onClick={() => setExpandedCategories(new Set(grouped.map(([cat]) => cat)))}
+                style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                title="Expand all"
+              >
+                [+]
+              </button>
+              <button
+                onClick={() => setExpandedCategories(new Set())}
+                style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 10, padding: 0 }}
+                title="Collapse all"
+              >
+                [-]
+              </button>
+            </span>
+          )}
         </div>
       </div>
       <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
