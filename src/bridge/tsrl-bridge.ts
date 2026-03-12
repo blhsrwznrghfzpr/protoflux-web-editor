@@ -10,6 +10,7 @@ export class TsrlBridge implements IResoniteBridge {
   private link: ResoniteLink | null = null;
   private status: BridgeStatus = 'disconnected';
   private listeners = new Set<(status: BridgeStatus) => void>();
+  private reconnectListeners = new Set<(attempt: number) => void>();
   private url: string;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
@@ -37,6 +38,7 @@ export class TsrlBridge implements IResoniteBridge {
     }
     const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
     this.reconnectAttempts++;
+    this.reconnectListeners.forEach((cb) => cb(this.reconnectAttempts));
     this.reconnectTimer = setTimeout(async () => {
       try {
         await this.connect();
@@ -308,6 +310,11 @@ export class TsrlBridge implements IResoniteBridge {
   onStatusChange(cb: (status: BridgeStatus) => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  onReconnectAttempt(cb: (attempt: number) => void): () => void {
+    this.reconnectListeners.add(cb);
+    return () => this.reconnectListeners.delete(cb);
   }
 }
 

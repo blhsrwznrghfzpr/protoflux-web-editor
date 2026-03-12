@@ -11,6 +11,7 @@ export function StatusBar() {
   const selection = useEditorStore((s) => s.selection);
   const dirty = useEditorStore((s) => s.dirty);
   const bridgeStatus = useEditorStore((s) => s.bridgeStatus);
+  const reconnectAttempt = useEditorStore((s) => s.reconnectAttempt);
   const statusMessage = useEditorStore((s) => s.statusMessage);
   const clearStatusMessage = useEditorStore((s) => s.clearStatusMessage);
   const validationErrors = useEditorStore((s) => s.validationErrors);
@@ -102,7 +103,14 @@ export function StatusBar() {
             background: BRIDGE_COLORS[bridgeStatus] ?? '#888',
           }}
         />
-        <span>{BRIDGE_LABELS[bridgeStatus] ?? bridgeStatus}</span>
+        <span>
+          {BRIDGE_LABELS[bridgeStatus] ?? bridgeStatus}
+          {reconnectAttempt > 0 && bridgeStatus !== 'connected' && (
+            <span style={{ color: '#f39c12', marginLeft: 4 }}>
+              (retry {reconnectAttempt}/5)
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ export function BridgePanel() {
   const documentName = useEditorStore((s) => s.documentName);
   const loadGraph = useEditorStore((s) => s.loadGraph);
   const setStatusMessage = useEditorStore((s) => s.setStatusMessage);
+  const setReconnectAttempt = useEditorStore((s) => s.setReconnectAttempt);
   const [url, setUrl] = useState(
     import.meta.env.VITE_RESONITE_LINK_URL ?? 'ws://localhost:11404',
   );
@@ -35,6 +36,7 @@ export function BridgePanel() {
     const newBridge = new TsrlBridge(url);
     setBridge(newBridge);
     newBridge.onStatusChange(setBridgeStatus);
+    newBridge.onReconnectAttempt(setReconnectAttempt);
     try {
       await newBridge.connect();
       toast('Connected to Resonite', 'success');
@@ -42,7 +44,7 @@ export function BridgePanel() {
       toast('Failed to connect to Resonite', 'error');
       setStatusMessage('Connection to Resonite failed', 'error');
     }
-  }, [url, setBridge, setBridgeStatus, setStatusMessage]);
+  }, [url, setBridge, setBridgeStatus, setReconnectAttempt, setStatusMessage]);
 
   const handleDisconnect = useCallback(async () => {
     await bridge.disconnect();

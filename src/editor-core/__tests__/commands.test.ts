@@ -208,4 +208,34 @@ describe('copyNodes / pasteNodes', () => {
     expect(result.graph).toBe(emptyGraph);
     expect(result.newNodeIds).toHaveLength(0);
   });
+
+  it('supports incremental offset for multiple pastes', () => {
+    let graph = emptyGraph;
+    const r1 = addNode(graph, 'Test/FloatConst', { x: 0, y: 0 });
+    if ('error' in r1) throw new Error(r1.error);
+    graph = r1.graph;
+
+    const clipboard = copyNodes(graph, [r1.node.id]);
+
+    // First paste with offset multiplier 1
+    const paste1 = pasteNodes(graph, clipboard, { x: 60, y: 60 });
+    graph = paste1.graph;
+    const pasted1 = graph.nodes.find((n) => n.id === paste1.newNodeIds[0])!;
+    expect(pasted1.position.x).toBe(60);
+    expect(pasted1.position.y).toBe(60);
+
+    // Second paste with offset multiplier 2
+    const paste2 = pasteNodes(graph, clipboard, { x: 120, y: 120 });
+    graph = paste2.graph;
+    const pasted2 = graph.nodes.find((n) => n.id === paste2.newNodeIds[0])!;
+    expect(pasted2.position.x).toBe(120);
+    expect(pasted2.position.y).toBe(120);
+
+    // Third paste with offset multiplier 3
+    const paste3 = pasteNodes(graph, clipboard, { x: 180, y: 180 });
+    graph = paste3.graph;
+    const pasted3 = graph.nodes.find((n) => n.id === paste3.newNodeIds[0])!;
+    expect(pasted3.position.x).toBe(180);
+    expect(pasted3.position.y).toBe(180);
+  });
 });

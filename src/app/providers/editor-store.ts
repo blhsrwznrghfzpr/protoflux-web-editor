@@ -22,12 +22,14 @@ interface EditorState {
   graph: GraphModel;
   selection: NodeId[];
   clipboard: ClipboardData | null;
+  pasteCount: number;
   viewport: { x: number; y: number; zoom: number };
   history: HistoryState;
   dirty: boolean;
   documentName: string;
   bridge: IResoniteBridge;
   bridgeStatus: BridgeStatus;
+  reconnectAttempt: number;
   statusMessage: StatusMessage | null;
   validationErrors: ValidationError[];
 
@@ -52,6 +54,7 @@ interface EditorState {
   setDirty: (dirty: boolean) => void;
   setBridge: (bridge: IResoniteBridge) => void;
   setBridgeStatus: (status: BridgeStatus) => void;
+  setReconnectAttempt: (attempt: number) => void;
   setStatusMessage: (text: string, type: StatusMessage['type']) => void;
   clearStatusMessage: () => void;
 }
@@ -124,12 +127,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   graph: initialGraph,
   selection: [],
   clipboard: null,
+  pasteCount: 0,
   viewport: initialViewport,
   history: { undoStack: [], redoStack: [] },
   dirty: false,
   documentName: initialDocName,
   bridge: new NoopBridge(),
   bridgeStatus: 'disconnected',
+  reconnectAttempt: 0,
   statusMessage: null,
   validationErrors: validateGraph(initialGraph),
 
@@ -240,16 +245,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     if (state.selection.length === 0) return;
     const data = copyNodes(state.graph, state.selection);
-    set({ clipboard: data });
+    set({ clipboard: data, pasteCount: 0 });
   },
 
   pasteClipboard: () => {
     const state = get();
     if (!state.clipboard || state.clipboard.nodes.length === 0) return;
-    const result = pasteNodes(state.graph, state.clipboard);
+    const n = state.pasteCount + 1;
+    const offset = { x: 60 * n, y: 60 * n };
+    const result = pasteNodes(state.graph, state.clipboard, offset);
     set({
       graph: result.graph,
       selection: result.newNodeIds,
+      pasteCount: n,
       history: pushHistory(state.history, state.graph),
       dirty: true,
     });
@@ -313,7 +321,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setDirty: (dirty) => set({ dirty }),
   setBridge: (bridge) => set({ bridge }),
-  setBridgeStatus: (status) => set({ bridgeStatus: status }),
+  setBridgeStatus: (status) => {
+    set({ bridgeStatus: status });
+    if (status === 'connected') set({ reconnectAttempt: 0 });
+  },
+  setReconnectAttempt: (attempt) => set({ reconnectAttempt: attempt }),
   setStatusMessage: (text, type) =>
     set({ statusMessage: { text, type, timestamp: Date.now() } }),
   clearStatusMessage: () => set({ statusMessage: null }),
