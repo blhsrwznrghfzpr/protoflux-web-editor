@@ -30,6 +30,8 @@ export interface ProtofluxDocument {
     name: string;
     createdAt: string;
     updatedAt: string;
+    resoniteVersion?: string;
+    datasetGeneratedAt?: string;
   };
   graph: {
     nodes: NodeModel[];

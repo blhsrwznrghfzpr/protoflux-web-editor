@@ -7,6 +7,7 @@ import { deleteNode, deleteEdge } from '@/editor-core/commands/delete-node';
 import { moveNode } from '@/editor-core/commands/move-node';
 import { updateParam } from '@/editor-core/commands/update-param';
 import { duplicateNodes } from '@/editor-core/commands/duplicate-node';
+import { validateGraph, type ValidationError } from '@/editor-core/services/validator';
 import type { BridgeStatus, IResoniteBridge } from '@/bridge/types';
 import { NoopBridge } from '@/bridge/noop-bridge';
 
@@ -26,6 +27,7 @@ interface EditorState {
   bridge: IResoniteBridge;
   bridgeStatus: BridgeStatus;
   statusMessage: StatusMessage | null;
+  validationErrors: ValidationError[];
 
   // Actions
   addNode: (type: string, position: { x: number; y: number }) => void;
@@ -46,6 +48,19 @@ interface EditorState {
   setBridgeStatus: (status: BridgeStatus) => void;
   setStatusMessage: (text: string, type: StatusMessage['type']) => void;
   clearStatusMessage: () => void;
+}
+
+// ---- Validation with debounce -----------------------------------------------
+
+let validationTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleValidation() {
+  if (validationTimer) clearTimeout(validationTimer);
+  validationTimer = setTimeout(() => {
+    const state = useEditorStore.getState();
+    const errors = validateGraph(state.graph);
+    useEditorStore.setState({ validationErrors: errors });
+  }, 300);
 }
 
 // ---- Auto-save with debounce ------------------------------------------------
@@ -109,6 +124,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   bridge: new NoopBridge(),
   bridgeStatus: 'disconnected',
   statusMessage: null,
+  validationErrors: validateGraph(initialGraph),
 
   addNode: (type, position) => {
     const state = get();
@@ -120,6 +136,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: true,
     });
     scheduleAutosave();
+    scheduleValidation();
   },
 
   connectEdge: (fromNodeId, fromPortId, toNodeId, toPortId) => {
@@ -132,6 +149,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: true,
     });
     scheduleAutosave();
+    scheduleValidation();
     return null;
   },
 
@@ -145,6 +163,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: true,
     });
     scheduleAutosave();
+    scheduleValidation();
   },
 
   deleteEdge: (edgeId) => {
@@ -156,6 +175,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       dirty: true,
     });
     scheduleAutosave();
+    scheduleValidation();
   },
 
   moveNode: (nodeId, position) => {
@@ -206,6 +226,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!result) return;
     set({ graph: result.graph, history: result.history, dirty: true });
     scheduleAutosave();
+    scheduleValidation();
   },
 
   redo: () => {
@@ -214,6 +235,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!result) return;
     set({ graph: result.graph, history: result.history, dirty: true });
     scheduleAutosave();
+    scheduleValidation();
   },
 
   loadGraph: (graph, name) => {
@@ -223,6 +245,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: { undoStack: [], redoStack: [] },
       dirty: false,
       documentName: name ?? 'Untitled',
+      validationErrors: validateGraph(graph),
     });
     scheduleAutosave();
   },

@@ -11,6 +11,7 @@ export function StatusBar() {
   const bridgeStatus = useEditorStore((s) => s.bridgeStatus);
   const statusMessage = useEditorStore((s) => s.statusMessage);
   const clearStatusMessage = useEditorStore((s) => s.clearStatusMessage);
+  const validationErrors = useEditorStore((s) => s.validationErrors);
 
   const BRIDGE_LABELS: Record<string, string> = {
     disconnected: 'Disconnected',
@@ -44,6 +45,14 @@ export function StatusBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <span>Nodes: {graph.nodes.length}</span>
         <span>Edges: {graph.edges.length}</span>
+        {validationErrors.length > 0 && (
+          <span
+            style={{ color: '#e74c3c' }}
+            title={validationErrors.map((e) => e.message).join('\n')}
+          >
+            Errors: {validationErrors.length}
+          </span>
+        )}
       </div>
 
       {statusMessage && (
